@@ -291,285 +291,88 @@ const veridaService = {
   },
 
   // Get Telegram data (groups and messages) from Verida vault
-  getTelegramData: async (did, authToken) => {
+  getTelegramData: async (did, authToken, options = {}) => {
     try {
-      if (!did || !authToken) {
-        throw new Error('DID and auth token are required');
-      }
+      console.log(`\n🔍 FETCHING TELEGRAM DATA FROM VERIDA API 🔍`);
+      console.log(`==============================================`);
+      console.log(`🔑 User DID: ${did}`);
       
-      console.log('Querying Verida with:', { did, authToken: authToken.substring(0, 10) + '...' });
+      // Set default pagination options
+      const page = options.page || 1;
+      const limit = options.limit || 100;
+      const maxPages = options.maxPages || 3; // Limit to 3 pages by default to avoid excessive API calls
       
-      // Format auth header correctly - EXACTLY as shown in example
-      const authHeader = authToken.startsWith('Bearer ') ? authToken : `Bearer ${authToken}`;
+      // Store the auth token for use in subsequent requests
+      storeAuthToken(did, authToken);
       
-      // First try direct count API
-      let groups = 0;
-      let messages = 0;
-      let groupItems = [];
-      let messageItems = [];
-      let keywordMatches = {
-        totalCount: 0,
-        keywords: {}
-      };
+      // Fetch Telegram groups (no pagination needed for groups as there are typically few)
+      const groups = await veridaService.getTelegramGroups(did, authToken);
+      console.log(`✅ Retrieved ${groups.length} Telegram groups`);
       
-      // Initialize keyword counts
-      ENGAGE_KEYWORDS.forEach(keyword => {
-        keywordMatches.keywords[keyword] = 0;
-      });
+      // Fetch Telegram messages with pagination
+      let allMessages = [];
+      let currentPage = page;
+      let hasMoreMessages = true;
       
-      console.log('Trying direct count API...');
-      try {
-        const groupsCountResponse = await axios({
-          method: 'POST',
-          url: `${VERIDA_API_BASE_URL}/api/rest/v1/ds/count/${GROUP_SCHEMA_ENCODED}`,
-          data: {},
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': authHeader
-          },
-          timeout: 10000
-        });
+      // Get the total count of messages (for pagination info)
+      const messageSchemaUrl = 'https://common.schemas.verida.io/social/chat/message/v0.1.0/schema.json';
+      const totalMessages = await getDatastoreCount(authToken, messageSchemaUrl);
+      console.log(`📊 Total message count: ${totalMessages}`);
+      
+      // Fetch messages page by page up to the maximum
+      while (hasMoreMessages && currentPage <= page + maxPages - 1) {
+        console.log(`📑 Fetching message page ${currentPage}...`);
+        const messages = await veridaService.getTelegramMessages(did, authToken, currentPage, limit);
         
-        const messagesCountResponse = await axios({
-          method: 'POST',
-          url: `${VERIDA_API_BASE_URL}/api/rest/v1/ds/count/${MESSAGE_SCHEMA_ENCODED}`,
-          data: {},
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': authHeader
-          },
-          timeout: 10000
-        });
+        if (messages.length > 0) {
+          allMessages = [...allMessages, ...messages];
+          console.log(`✅ Added ${messages.length} messages from page ${currentPage}`);
+          currentPage++;
+        } else {
+          hasMoreMessages = false;
+          console.log(`📭 No more messages to fetch`);
+        }
         
-        groups = groupsCountResponse.data?.count || 0;
-        messages = messagesCountResponse.data?.count || 0;
-        
-        console.log(`📊 Telegram Data Summary:`);
-        console.log(`👥 Groups: ${groups}`);
-        console.log(`💬 Messages: ${messages}`);
-      } catch (countError) {
-        console.log('Count API failed:', countError.message);
-        
-        // Fall back to query API
-        console.log('Trying direct query API...');
-        try {
-          // Fetch group data
-          const groupResponse = await axios({
-            method: 'POST',
-            url: `${VERIDA_API_BASE_URL}/api/rest/v1/ds/query/${GROUP_SCHEMA_ENCODED}`,
-            data: {
-              options: {
-                sort: [{ _id: "desc" }],
-                limit: 1000000
-              }
-            },
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': authHeader
-            },
-            timeout: 10000
-          });
-          
-          // Fetch message data
-          const messageResponse = await axios({
-            method: 'POST',
-            url: `${VERIDA_API_BASE_URL}/api/rest/v1/ds/query/${MESSAGE_SCHEMA_ENCODED}`,
-            data: {
-              options: {
-                sort: [{ _id: "desc" }],
-                limit: 1000000
-              }
-            },
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': authHeader
-            },
-            timeout: 10000
-          });
-          
-          // Check response format for groups
-          console.log('Groups query results:', 
-            groupResponse.data?.results ? 
-              `Found ${groupResponse.data.results.length} results` : 
-              `No results array (keys: ${Object.keys(groupResponse.data || {}).join(', ')})`
-          );
-          
-          // Check response format for messages
-          console.log('Messages query results:', 
-            messageResponse.data?.results ? 
-              `Found ${messageResponse.data.results.length} results` : 
-              `No results array (keys: ${Object.keys(messageResponse.data || {}).join(', ')})`
-          );
-          
-          // Extract data based on response format
-          if (groupResponse.data?.results && Array.isArray(groupResponse.data.results)) {
-            groupItems = groupResponse.data.results;
-          } else if (groupResponse.data?.items && Array.isArray(groupResponse.data.items)) {
-            groupItems = groupResponse.data.items;
-            console.log(`Found ${groupItems.length} groups in 'items' array`);
-          }
-          
-          if (messageResponse.data?.results && Array.isArray(messageResponse.data.results)) {
-            messageItems = messageResponse.data.results;
-          } else if (messageResponse.data?.items && Array.isArray(messageResponse.data.items)) {
-            messageItems = messageResponse.data.items;
-            console.log(`Found ${messageItems.length} messages in 'items' array`);
-          }
-          
-          groups = groupItems.length;
-          messages = messageItems.length;
-          
-          // Check for keywords in group content
-          if (groupItems.length > 0) {
-            console.log('Checking group content for keywords...');
-            groupItems.forEach(group => {
-              const groupText = [
-                group.name || '', 
-                group.description || '',
-                group.subject || ''
-              ].join(' ');
-              
-              if (groupText.trim()) {
-                checkForKeywords(groupText, keywordMatches);
-              }
-            });
-          }
-          
-          // Enhanced message content checking
-          if (messageItems.length > 0) {
-            console.log('Checking message content for keywords...');
-            messageItems.forEach(message => {
-              // Log the entire message object structure to debug
-              console.log('Message object keys:', Object.keys(message));
-              
-              // Try to get message content from any possible field
-              let allTextFields = [];
-              
-              // Add all string fields from the message object
-              Object.entries(message).forEach(([key, value]) => {
-                if (typeof value === 'string') {
-                  allTextFields.push(value);
-                } else if (typeof value === 'object' && value !== null) {
-                  // Check nested objects (like "body" or "data")
-                  Object.values(value).forEach(nestedValue => {
-                    if (typeof nestedValue === 'string') {
-                      allTextFields.push(nestedValue);
-                    }
-                  });
-                }
-              });
-              
-              const messageText = allTextFields.join(' ');
-              
-              if (messageText.trim()) {
-                checkForKeywords(messageText, keywordMatches);
-              }
-            });
-          }
-          
-          console.log(`\n🔑 Keyword Matches:`);
-          console.log(`📝 Total matches: ${keywordMatches.totalCount}`);
-          for (const [keyword, count] of Object.entries(keywordMatches.keywords)) {
-            if (count > 0) {
-              console.log(`- '${keyword}': ${count}`);
-            }
-          }
-        } catch (queryError) {
-          console.error('Query API failed:', queryError.message);
-          
-          // Last resort: try universal search for each keyword
-          console.log('Trying keyword-specific searches...');
-          try {
-            for (const keyword of ENGAGE_KEYWORDS) {
-              try {
-                const keywordResponse = await axios({
-                  method: 'GET',
-                  url: `${VERIDA_API_BASE_URL}/api/rest/v1/search/universal?keywords=${keyword}`,
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': authHeader
-                  },
-                  timeout: 10000
-                });
-                
-                if (keywordResponse.data?.items && Array.isArray(keywordResponse.data.items)) {
-                  const matchCount = keywordResponse.data.items.filter(item => 
-                    (item.schema?.includes('chat/group') || item.schema?.includes('chat/message'))
-                  ).length;
-                  
-                  keywordMatches.keywords[keyword] = matchCount;
-                  keywordMatches.totalCount += matchCount;
-                  
-                  console.log(`Search for '${keyword}' found ${matchCount} matches`);
-                }
-              } catch (keywordError) {
-                console.warn(`Search for keyword '${keyword}' failed:`, keywordError.message);
-              }
-            }
-          } catch (searchError) {
-            console.error('Keyword searches failed:', searchError.message);
-          }
-          
-          // If we still have no group/message counts, try universal search for telegram
-          if (groups === 0 && messages === 0) {
-            try {
-              const searchResponse = await axios({
-                method: 'GET',
-                url: `${VERIDA_API_BASE_URL}/api/rest/v1/search/universal?keywords=telegram`,
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': authHeader
-                },
-                timeout: 10000
-              });
-              
-              if (searchResponse.data?.items && Array.isArray(searchResponse.data.items)) {
-                const telegramItems = searchResponse.data.items.filter(item => 
-                  (item.schema?.includes('chat/group') || 
-                   item.schema?.includes('chat/message') || 
-                   (item.name && item.name.toLowerCase().includes('telegram')))
-                );
-                
-                console.log(`Found ${telegramItems.length} Telegram-related items in search`);
-                
-                // Set the counts based on the search results
-                groups = telegramItems.filter(item => 
-                  item.schema?.includes('chat/group')
-                ).length;
-                
-                messages = telegramItems.filter(item => 
-                  item.schema?.includes('chat/message')
-                ).length;
-                
-                console.log(`Search results: ${groups} groups, ${messages} messages`);
-              }
-            } catch (searchError) {
-              console.error('Telegram search also failed:', searchError.message);
-            }
-          }
+        // Break if we've retrieved all messages
+        if (allMessages.length >= totalMessages) {
+          console.log(`📊 Retrieved all available messages (${allMessages.length})`);
+          hasMoreMessages = false;
         }
       }
       
+      console.log(`✅ Total Telegram data retrieved: ${groups.length} groups, ${allMessages.length} messages`);
+      
       return {
         groups,
-        messages,
-        keywordMatches
+        messages: allMessages,
+        pagination: {
+          totalMessages,
+          currentPage: page,
+          limit,
+          totalPages: Math.ceil(totalMessages / limit)
+        }
       };
     } catch (error) {
-      console.error('Error getting Telegram data:', error);
-      throw error;
+      console.error(`❌ Error in getTelegramData:`, error.message);
+      return {
+        groups: [],
+        messages: [],
+        pagination: {
+          totalMessages: 0,
+          currentPage: 1,
+          limit: 100,
+          totalPages: 0
+        },
+        error: error.message
+      };
     }
   },
 
   // Get Telegram groups with detailed logging
-  getTelegramGroups: async (userId) => {
+  getTelegramGroups: async (did, authToken) => {
     try {
-      console.log(`\n🔍 FETCHING TELEGRAM GROUPS FROM VERIDA API 🔍`);
-      console.log(`============================================`);
-      
-      console.log(`🔑 Getting auth token for user: ${userId}`);
-      const authToken = getAuthToken(userId);
-      console.log(`✅ Auth token retrieved successfully`);
+      console.log(`\n👥 FETCHING TELEGRAM GROUPS FROM VERIDA API 👥`);
+      console.log(`==============================================`);
       
       // Use the correct schema URL and encode it in base64
       const schemaUrl = 'https://common.schemas.verida.io/social/chat/group/v0.1.0/schema.json';
@@ -578,224 +381,43 @@ const veridaService = {
       console.log(`📋 Schema URL: ${schemaUrl}`);
       console.log(`📋 Encoded schema: ${schemaUrlEncoded}`);
       
-      // Try multiple API endpoint patterns
-      let groups = [];
-      let errors = [];
+      const apiUrl = `${VERIDA_API_BASE_URL}${API_PATH_PREFIX}/ds/query/${schemaUrlEncoded}`;
+      console.log(`🌐 Making API request to: ${apiUrl}`);
       
-      // Attempt 1: Using the API prefix correctly
-      try {
-        console.log(`\n🌐 ATTEMPT 1: Using the correct API path format`);
-        const apiUrl = `${VERIDA_API_BASE_URL}${API_PATH_PREFIX}/search/ds`;
-        console.log(`🌐 Making API request to: ${apiUrl}`);
-        
-        const requestData = {
-          schema: schemaUrl,
-          query: {
-            sourceApplication: "https://telegram.com"
-          },
-          options: {
-            sort: [{ _id: "desc" }],
-            limit: 10000000
-          }
-        };
-        
-        console.log(`📤 Request data: ${JSON.stringify(requestData, null, 2)}`);
-        
-        const response = await axios({
-          method: 'POST',
-          url: apiUrl,
-          data: requestData,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authToken}`
-          },
-          timeout: 30000
-        });
-        
-        console.log(`🔢 Status code: ${response.status}`);
-        console.log(`📊 Response data keys: ${JSON.stringify(Object.keys(response.data || {}))}`);
-        
-        if (response.data && response.data.items && Array.isArray(response.data.items)) {
-          groups = response.data.items;
-          console.log(`✅ ATTEMPT 1 SUCCESS: Found ${groups.length} groups`);
-        } else {
-          console.log(`⚠️ ATTEMPT 1: No items found in response`);
+      const requestData = {
+        query: {
+          sourceApplication: "https://telegram.com"
+        },
+        options: {
+          sort: [{ _id: "desc" }]
         }
-      } catch (error) {
-        console.error(`❌ ATTEMPT 1 FAILED: ${error.message}`);
-        errors.push({ attempt: 1, error });
-      }
+      };
       
-      // Attempt 2: Using the API prefix with query format
-      if (groups.length === 0) {
-        try {
-          console.log(`\n🌐 ATTEMPT 2: Using API path with encoded schema`);
-          const apiUrl = `${VERIDA_API_BASE_URL}${API_PATH_PREFIX}/ds/query/${schemaUrlEncoded}`;
-          console.log(`🌐 Making API request to: ${apiUrl}`);
-          
-          const requestData = {
-            query: {
-              sourceApplication: "https://telegram.com"
-            },
-            options: {
-              sort: [{ _id: "desc" }],
-              limit: 10000000
-            
-            }
-          };
-          
-          console.log(`📤 Request data: ${JSON.stringify(requestData, null, 2)}`);
-          
-          const response = await axios({
-            method: 'POST',
-            url: apiUrl,
-            data: requestData,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authToken}`
-            },
-            timeout: 30000
-          });
-          
-          console.log(`🔢 Status code: ${response.status}`);
-          console.log(`📊 Response data keys: ${JSON.stringify(Object.keys(response.data || {}))}`);
-          
-          if (response.data && response.data.items && Array.isArray(response.data.items)) {
-            groups = response.data.items;
-            console.log(`✅ ATTEMPT 2 SUCCESS: Found ${groups.length} groups`);
-          } else {
-            console.log(`⚠️ ATTEMPT 2: No items found in response`);
-          }
-        } catch (error) {
-          console.error(`❌ ATTEMPT 2 FAILED: ${error.message}`);
-          errors.push({ attempt: 2, error });
+      console.log(`📤 Request data: ${JSON.stringify(requestData, null, 2)}`);
+      
+      const response = await axios({
+        method: 'POST',
+        url: apiUrl,
+        data: requestData,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
         }
-      }
+      });
       
-      // Attempt 3: Using universal search with API prefix
-      if (groups.length === 0) {
-        try {
-          console.log(`\n🌐 ATTEMPT 3: Using universal search with API prefix`);
-          const apiUrl = `${VERIDA_API_BASE_URL}${API_PATH_PREFIX}/search/universal?keywords=telegram`;
-          console.log(`🌐 Making API request to: ${apiUrl}`);
-          
-          const response = await axios({
-            method: 'GET',
-            url: apiUrl,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authToken}`
-            },
-            timeout: 30000
-          });
-          
-          console.log(`🔢 Status code: ${response.status}`);
-          console.log(`📊 Response data keys: ${JSON.stringify(Object.keys(response.data || {}))}`);
-          
-          if (response.data && response.data.items && Array.isArray(response.data.items)) {
-            // Filter to only include group items
-            const telegramGroups = response.data.items.filter(item => 
-              item.schema && (item.schema.includes('chat/group') || item.schema.includes('telegram'))
-            );
-            
-            groups = telegramGroups;
-            console.log(`✅ ATTEMPT 3 SUCCESS: Found ${groups.length} groups`);
-          } else {
-            console.log(`⚠️ ATTEMPT 3: No items found in response`);
-          }
-        } catch (error) {
-          console.error(`❌ ATTEMPT 3 FAILED: ${error.message}`);
-          errors.push({ attempt: 3, error });
-        }
-      }
-      
-      // Attempt 4: Using the verida example project approach
-      if (groups.length === 0) {
-        try {
-          console.log(`\n🌐 ATTEMPT 4: Using verida example approach`);
-          
-          // This mimics the approach in the verida example folder
-          const apiUrl = `${VERIDA_API_BASE_URL}/api/rest/v1/ds/query/${schemaUrlEncoded}`;
-          console.log(`🌐 Making API request to: ${apiUrl}`);
-          
-          const requestData = {
-            query: {
-              sourceApplication: "https://telegram.com"
-            },
-            options: {
-              sort: [{ _id: "desc" }],
-              limit: 10000000
-            }
-          };
-          
-          console.log(`📤 Request data: ${JSON.stringify(requestData, null, 2)}`);
-          
-          const response = await axios({
-            method: 'POST',
-            url: apiUrl,
-            data: requestData,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authToken}`
-            },
-            timeout: 30000
-          });
-          
-          console.log(`🔢 Status code: ${response.status}`);
-          console.log(`📊 Response data keys: ${JSON.stringify(Object.keys(response.data || {}))}`);
-          
-          if (response.data && response.data.items && Array.isArray(response.data.items)) {
-            groups = response.data.items;
-            console.log(`✅ ATTEMPT 4 SUCCESS: Found ${groups.length} groups`);
-          } else {
-            console.log(`⚠️ ATTEMPT 4: No items found in response`);
-          }
-        } catch (error) {
-          console.error(`❌ ATTEMPT 4 FAILED: ${error.message}`);
-          errors.push({ attempt: 4, error });
-        }
-      }
-      
-      // Summary of results
-      console.log(`\n📊 TELEGRAM GROUPS SUMMARY:`);
-      console.log(`📊 Total groups found: ${groups.length}`);
-      console.log(`📊 Attempts made: ${errors.length + 1}`);
-      console.log(`📊 Failed attempts: ${errors.length}`);
-      
-      if (groups.length > 0) {
-        console.log(`📋 First group sample:`);
-        console.log(JSON.stringify(groups[0], null, 2));
-      }
-      
-      console.log(`============================================\n`);
-      return groups;
+      console.log(`✅ Retrieved ${response.data?.length || 0} Telegram groups`);
+      return response.data || [];
     } catch (error) {
-      console.error(`\n❌ ERROR FETCHING TELEGRAM GROUPS:`);
-      console.error(error);
-      
-      if (error.response) {
-        console.error(`❌ Response status: ${error.response.status}`);
-        console.error(`❌ Response data:`, error.response.data);
-      } else if (error.request) {
-        console.error(`❌ No response received`);
-      } else {
-        console.error(`❌ Error setting up request: ${error.message}`);
-      }
-      
-      console.error(`============================================\n`);
-      throw error;
+      console.error("❌ Error fetching Telegram groups:", error.message);
+      return [];
     }
   },
   
   // Get Telegram messages with detailed logging
-  getTelegramMessages: async (userId) => {
+  getTelegramMessages: async (did, authToken, page = 1, limit = 100) => {
     try {
-      console.log(`\n📝 FETCHING TELEGRAM MESSAGES FROM VERIDA API 📝`);
+      console.log(`\n📝 FETCHING TELEGRAM MESSAGES FROM VERIDA API (Page ${page}, Limit ${limit}) 📝`);
       console.log(`==============================================`);
-      
-      console.log(`🔑 Getting auth token for user: ${userId}`);
-      const authToken = getAuthToken(userId);
-      console.log(`✅ Auth token retrieved successfully`);
       
       // Use the correct schema URL and encode it in base64
       const schemaUrl = 'https://common.schemas.verida.io/social/chat/message/v0.1.0/schema.json';
@@ -804,211 +426,40 @@ const veridaService = {
       console.log(`📋 Schema URL: ${schemaUrl}`);
       console.log(`📋 Encoded schema: ${schemaUrlEncoded}`);
       
-      // Try multiple API endpoint patterns
-      let messages = [];
-      let errors = [];
+      // Calculate pagination offset
+      const skip = (page - 1) * limit;
       
-      // Attempt 1: Using the API prefix correctly
-      try {
-        console.log(`\n🌐 ATTEMPT 1: Using the correct API path format`);
-        const apiUrl = `${VERIDA_API_BASE_URL}${API_PATH_PREFIX}/search/ds`;
-        console.log(`🌐 Making API request to: ${apiUrl}`);
-        
-        const requestData = {
-          schema: schemaUrl,
-          query: {
-            sourceApplication: "https://telegram.com"
-          },
-          options: {
-            sort: [{ _id: "desc" }],
-            limit: 10000000
-          }
-        };
-        
-        console.log(`📤 Request data: ${JSON.stringify(requestData, null, 2)}`);
-        
-        const response = await axios({
-          method: 'POST',
-          url: apiUrl,
-          data: requestData,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authToken}`
-          },
-          timeout: 30000
-        });
-        
-        console.log(`🔢 Status code: ${response.status}`);
-        console.log(`📊 Response data keys: ${JSON.stringify(Object.keys(response.data || {}))}`);
-        
-        if (response.data && response.data.items && Array.isArray(response.data.items)) {
-          messages = response.data.items;
-          console.log(`✅ ATTEMPT 1 SUCCESS: Found ${messages.length} messages`);
-        } else {
-          console.log(`⚠️ ATTEMPT 1: No items found in response`);
+      const apiUrl = `${VERIDA_API_BASE_URL}${API_PATH_PREFIX}/ds/query/${schemaUrlEncoded}`;
+      console.log(`🌐 Making API request to: ${apiUrl}`);
+      
+      const requestData = {
+        query: {
+          sourceApplication: "https://telegram.com"
+        },
+        options: {
+          sort: [{ _id: "desc" }],
+          limit: limit,
+          skip: skip
         }
-      } catch (error) {
-        console.error(`❌ ATTEMPT 1 FAILED: ${error.message}`);
-        errors.push({ attempt: 1, error });
-      }
+      };
       
-      // Attempt 2: Using the API prefix with query format
-      if (messages.length === 0) {
-        try {
-          console.log(`\n🌐 ATTEMPT 2: Using API path with encoded schema`);
-          const apiUrl = `${VERIDA_API_BASE_URL}${API_PATH_PREFIX}/ds/query/${schemaUrlEncoded}`;
-          console.log(`🌐 Making API request to: ${apiUrl}`);
-          
-          const requestData = {
-            query: {
-              sourceApplication: "https://telegram.com"
-            },
-            options: {
-              sort: [{ _id: "desc" }],
-              limit: 10000000
-            }
-          };
-          
-          console.log(`📤 Request data: ${JSON.stringify(requestData, null, 2)}`);
-          
-          const response = await axios({
-            method: 'POST',
-            url: apiUrl,
-            data: requestData,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authToken}`
-            },
-            timeout: 30000
-          });
-          
-          console.log(`🔢 Status code: ${response.status}`);
-          console.log(`📊 Response data keys: ${JSON.stringify(Object.keys(response.data || {}))}`);
-          
-          if (response.data && response.data.items && Array.isArray(response.data.items)) {
-            messages = response.data.items;
-            console.log(`✅ ATTEMPT 2 SUCCESS: Found ${messages.length} messages`);
-          } else {
-            console.log(`⚠️ ATTEMPT 2: No items found in response`);
-          }
-        } catch (error) {
-          console.error(`❌ ATTEMPT 2 FAILED: ${error.message}`);
-          errors.push({ attempt: 2, error });
+      console.log(`📤 Request data: ${JSON.stringify(requestData, null, 2)}`);
+      
+      const response = await axios({
+        method: 'POST',
+        url: apiUrl,
+        data: requestData,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
         }
-      }
+      });
       
-      // Attempt 3: Using universal search with API prefix
-      if (messages.length === 0) {
-        try {
-          console.log(`\n🌐 ATTEMPT 3: Using universal search with API prefix`);
-          const apiUrl = `${VERIDA_API_BASE_URL}${API_PATH_PREFIX}/search/universal?keywords=telegram`;
-          console.log(`🌐 Making API request to: ${apiUrl}`);
-          
-          const response = await axios({
-            method: 'GET',
-            url: apiUrl,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authToken}`
-            },
-            timeout: 30000
-          });
-          
-          console.log(`🔢 Status code: ${response.status}`);
-          console.log(`📊 Response data keys: ${JSON.stringify(Object.keys(response.data || {}))}`);
-          
-          if (response.data && response.data.items && Array.isArray(response.data.items)) {
-            // Filter to only include message items
-            const telegramMessages = response.data.items.filter(item => 
-              item.schema && (item.schema.includes('chat/message') || item.schema.includes('telegram'))
-            );
-            
-            messages = telegramMessages;
-            console.log(`✅ ATTEMPT 3 SUCCESS: Found ${messages.length} messages`);
-          } else {
-            console.log(`⚠️ ATTEMPT 3: No items found in response`);
-          }
-        } catch (error) {
-          console.error(`❌ ATTEMPT 3 FAILED: ${error.message}`);
-          errors.push({ attempt: 3, error });
-        }
-      }
-      
-      // Attempt 4: Using the verida example project approach
-      if (messages.length === 0) {
-        try {
-          console.log(`\n🌐 ATTEMPT 4: Using verida example approach`);
-          
-          // This mimics the approach in the verida example folder
-          const apiUrl = `${VERIDA_API_BASE_URL}/api/rest/v1/ds/query/${schemaUrlEncoded}`;
-          console.log(`🌐 Making API request to: ${apiUrl}`);
-          
-          const requestData = {
-            query: {
-              sourceApplication: "https://telegram.com"
-            },
-            options: {
-              sort: [{ _id: "desc" }],
-              limit: 10000000
-            }
-          };
-          
-          console.log(`📤 Request data: ${JSON.stringify(requestData, null, 2)}`);
-          
-          const response = await axios({
-            method: 'POST',
-            url: apiUrl,
-            data: requestData,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authToken}`
-            },
-            timeout: 30000
-          });
-          
-          console.log(`🔢 Status code: ${response.status}`);
-          console.log(`📊 Response data keys: ${JSON.stringify(Object.keys(response.data || {}))}`);
-          
-          if (response.data && response.data.items && Array.isArray(response.data.items)) {
-            messages = response.data.items;
-            console.log(`✅ ATTEMPT 4 SUCCESS: Found ${messages.length} messages`);
-          } else {
-            console.log(`⚠️ ATTEMPT 4: No items found in response`);
-          }
-        } catch (error) {
-          console.error(`❌ ATTEMPT 4 FAILED: ${error.message}`);
-          errors.push({ attempt: 4, error });
-        }
-      }
-      
-      // Summary of results
-      console.log(`\n📊 TELEGRAM MESSAGES SUMMARY:`);
-      console.log(`📊 Total messages found: ${messages.length}`);
-      console.log(`📊 Attempts made: ${errors.length + 1}`);
-      console.log(`📊 Failed attempts: ${errors.length}`);
-      
-      if (messages.length > 0) {
-        console.log(`📋 First message sample:`);
-        console.log(JSON.stringify(messages[0], null, 2));
-      }
-      
-      console.log(`==============================================\n`);
-      return messages;
+      console.log(`✅ Retrieved ${response.data?.length || 0} Telegram messages`);
+      return response.data || [];
     } catch (error) {
-      console.error(`\n❌ ERROR FETCHING TELEGRAM MESSAGES:`);
-      console.error(error);
-      
-      if (error.response) {
-        console.error(`❌ Response status: ${error.response.status}`);
-        console.error(`❌ Response data:`, error.response.data);
-      } else if (error.request) {
-        console.error(`❌ No response received`);
-      } else {
-        console.error(`❌ Error setting up request: ${error.message}`);
-      }
-      
-      console.error(`==============================================\n`);
-      throw error;
+      console.error("❌ Error fetching Telegram messages:", error.message);
+      return [];
     }
   },
   
@@ -1027,8 +478,8 @@ const veridaService = {
       console.log(`📊 Fetching Telegram data for scoring...`);
       
       // Fetch user's Telegram groups and messages
-      const groups = await veridaService.getTelegramGroups(userId);
-      const messages = await veridaService.getTelegramMessages(userId);
+      const groups = await veridaService.getTelegramGroups(userId, getAuthToken(userId));
+      const messages = await veridaService.getTelegramMessages(userId, getAuthToken(userId));
       
       console.log(`📊 Retrieved ${groups.length} groups and ${messages.length} messages`);
       

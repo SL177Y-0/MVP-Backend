@@ -10,10 +10,28 @@ const ScoreSchema = new mongoose.Schema({
     wallets: [
         {
             walletAddress: { type: String, required: true },
-            score: { type: Number, required: true, default: 10 }
+            score: { type: Number, required: true, default: 10 },
+            chainId: { type: String },
+            lastUpdated: { type: Date, default: Date.now }
         }
     ],
-    badges: [{ type: String ,default: [] }]
+    badges: [
+        { 
+            name: String,
+            level: { type: String, enum: ['Bronze', 'Silver', 'Gold', 'Platinum'] },
+            value: Number,
+            earnedDate: { type: Date, default: Date.now }
+        }
+    ],
+    lastScoreUpdate: { type: Date, default: Date.now }
+}, { 
+    timestamps: true 
 });
+
+// Add indexes for common query fields
+ScoreSchema.index({ totalScore: -1 }, { background: true }); // For leaderboards
+ScoreSchema.index({ 'wallets.walletAddress': 1 }, { background: true, sparse: true });
+ScoreSchema.index({ username: 1 }, { background: true, sparse: true });
+ScoreSchema.index({ lastScoreUpdate: -1 }, { background: true }); // For recent updates
 
 module.exports = mongoose.model("Score", ScoreSchema);

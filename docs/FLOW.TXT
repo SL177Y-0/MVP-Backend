@@ -1,0 +1,243 @@
+This backend system calculates a comprehensive digital identity score by integrating data from Twitter, blockchain wallets, and Telegram communities. The algorithm fetches data in parallel from these sources, applies weighted scoring to relevant metrics (followers, transactions, group participation), and generates component scores that combine into a total score. Users earn badges based on threshold achievements and receive titles like "Web3 Wizard" or "Social Sage" reflecting their strongest domains. All data is stored efficiently in MongoDB with proper indexing, while the standardized API provides frontend applications with consistent score data and user insights. This score serves as a portable digital reputation that quantifies a user's engagement and influence across the web3 ecosystem.
+
+
+
+# User Flow and Algorithm Flowchart
+
+## User Interaction Flow
+
+```mermaid
+flowchart TB
+    Start([User Opens App]) --> Auth[Authentication with Privy]
+    Auth -->|Success| GetPrivyId[Receive privyId]
+    Auth -->|Failure| RetryAuth[Retry Authentication]
+    
+    GetPrivyId --> ParallelConnections
+    
+    subgraph ParallelConnections[Account Connections - Can happen in any order]
+        ConnectTwitter[Connect Twitter Account]
+        ConnectWallet[Connect Wallet]
+        ConnectTelegram[Connect Telegram via Verida]
+    end
+    
+    ParallelConnections --> CalculateScore[Calculate Total Score]
+    CalculateScore --> DisplayDashboard[Display Dashboard with Scores and Badges]
+    
+    DisplayDashboard --> UserActions
+    
+    subgraph UserActions[User Actions]
+        ViewScores[View Detailed Scores]
+        ViewBadges[View Earned Badges]
+        Reconnect[Reconnect Accounts]
+        RefreshScore[Refresh Score]
+    end
+    
+    UserActions --> CalculateScore
+```
+
+## Score Calculation Algorithm Flow
+
+```mermaid
+flowchart TB
+    StartCalc([Start Score Calculation]) --> ParallelFetch[Fetch Data in Parallel]
+    
+    subgraph ParallelFetch[Parallel Data Fetching]
+        Twitter[Fetch Twitter Data]
+        Blockchain[Fetch Blockchain Data]
+        Telegram[Fetch Telegram Data]
+    end
+    
+    ParallelFetch --> ProcessData[Process Raw Data]
+    
+    ProcessData --> ScoreCalc[Calculate Component Scores]
+    
+    subgraph ScoreCalc[Score Calculation]
+        TwitterScore[Calculate Social Score]
+        CryptoScore[Calculate Crypto Score]
+        NFTScore[Calculate NFT Score]
+        TelegramScore[Calculate Telegram Score]
+    end
+    
+    ScoreCalc --> Badges[Assign Badges Based on Thresholds]
+    Badges --> Title[Determine User Title]
+    Title --> SaveDB[Save to Database]
+    
+    SaveDB --> UpdateScore[Update Score Record]
+    UpdateScore --> UpdateUser[Update User Record]
+    
+    UpdateUser --> Response[Return Response to User]
+```
+
+## Detailed Data Pipeline
+
+```mermaid
+flowchart LR
+    Request[API Request] --> Validation[Validate Input]
+    Validation --> ExtractParams[Extract Parameters]
+    
+    subgraph DataFetching[Data Collection]
+        Twitter{{"Twitter API"}}
+        Blockchain{{"Blockchain API"}}
+        Telegram{{"Verida/Telegram API"}}
+    end
+    
+    ExtractParams --> DataFetching
+    
+    DataFetching --> RawData[Raw Platform Data]
+    
+    RawData --> MetricsExtraction[Extract Metrics]
+    
+    subgraph Metrics[Metrics Calculation]
+        TwitterMetrics[Followers, Engagement, etc.]
+        BlockchainMetrics[Chains, Tokens, NFTs, etc.]
+        TelegramMetrics[Groups, Messages, etc.]
+    end
+    
+    MetricsExtraction --> Metrics
+    
+    Metrics --> WeightApplication[Apply Weights]
+    
+    subgraph ComponentScores[Component Scores]
+        SocialScore[Social Score]
+        CryptoScore[Crypto Score]
+        NFTScore[NFT Score]
+        CommunityScore[Community Score]
+    end
+    
+    WeightApplication --> ComponentScores
+    
+    ComponentScores --> TotalScore[Calculate Total Score]
+    
+    TotalScore --> ThresholdCheck[Check Badge Thresholds]
+    
+    ThresholdCheck --> BadgeAssignment[Assign Badges]
+    
+    BadgeAssignment --> DomainAnalysis[Analyze Domain Distribution]
+    
+    DomainAnalysis --> TitleAssignment[Assign Title]
+    
+    TitleAssignment --> DatabaseUpdate[Update Database]
+    
+    DatabaseUpdate --> ResponseFormat[Format Response]
+    
+    ResponseFormat --> APIResponse[API Response]
+```
+
+## Score Components and Weights Visualization
+
+```mermaid
+graph TD
+    TotalScore[Total Score] --> Social[Social Score]
+    TotalScore --> Crypto[Crypto Score]
+    TotalScore --> NFT[NFT Score]
+    TotalScore --> Community[Community Score]
+    
+    Social --> |0.001| Followers[Followers]
+    Social --> |0.005| Retweets[Retweets]
+    Social --> |0.005| Quotes[Quotes]
+    Social --> |0.002| Replies[Replies]
+    Social --> |5| Verification[Verification]
+    Social --> |0.001| TweetFreq[Tweet Frequency]
+    
+    Crypto --> |5| ActiveChains[Active Chains]
+    Crypto --> |10| NativeBalance[Native Balance]
+    Crypto --> |2| TokenHoldings[Token Holdings]
+    Crypto --> |0.01| TransactionCount[Transaction Count]
+    
+    NFT --> |5| NFTHoldings[NFT Holdings]
+    
+    Community --> |2| GroupCount[Group Count]
+    Community --> |0.1| MessageFreq[Message Frequency]
+    Community --> |5| PinnedMessages[Pinned Messages]
+    Community --> |2| MediaMessages[Media Messages]
+    Community --> |5| Leadership[Leadership Roles]
+```
+
+## Database Update Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API as API Endpoint
+    participant Controller as Score Controller
+    participant ExtAPIs as External APIs
+    participant Algorithm as Score Algorithm
+    participant DB as MongoDB
+    
+    Client->>API: POST /api/scores/get-score
+    API->>Controller: Extract parameters
+    
+    par Parallel Data Fetching
+        Controller->>ExtAPIs: Get Twitter data
+        ExtAPIs-->>Controller: Twitter response
+        
+        Controller->>ExtAPIs: Get Blockchain data
+        ExtAPIs-->>Controller: Blockchain response
+        
+        Controller->>ExtAPIs: Get Telegram data
+        ExtAPIs-->>Controller: Telegram response
+    end
+    
+    Controller->>Algorithm: Process data & calculate score
+    Algorithm-->>Controller: Score results
+    
+    Controller->>DB: Find existing Score record
+    DB-->>Controller: Score record (or null)
+    
+    alt No existing record
+        Controller->>DB: Create new Score record
+    else Existing record
+        Controller->>DB: Update existing Score record
+    end
+    
+    Controller->>DB: Find User record
+    DB-->>Controller: User record (or null)
+    
+    alt No existing User record
+        Controller->>DB: Create new User record
+    else Existing User record
+        Controller->>DB: Update User record
+    end
+    
+    Controller-->>API: Formatted response
+    API-->>Client: JSON response with scores, badges, title
+```
+
+## Title Determination Logic
+
+```mermaid
+flowchart TD
+    StartTitle[Start Title Determination] --> CalculateDomains[Calculate Domain Scores]
+    CalculateDomains --> SortDomains[Sort Domains by Score]
+    SortDomains --> CalculateBalance[Calculate Balance Factor]
+    
+    CalculateBalance --> CheckTotal{Total Score > Wizard Threshold?}
+    CheckTotal -->|Yes| CheckBalance{Balance Factor > 0.7?}
+    CheckBalance -->|Yes| AssignWizard[Assign "Web3 Wizard"]
+    CheckBalance -->|No| CheckDominance{Dominant Domain?}
+    
+    CheckTotal -->|No| CheckDominance
+    
+    CheckDominance -->|Yes| DomainCheck{Which domain?}
+    DomainCheck -->|Crypto| AssignCrypto[Assign "Crypto Connoisseur"]
+    DomainCheck -->|Social| AssignSocial[Assign "Social Sage"]
+    DomainCheck -->|Community| AssignCommunity[Assign "Community Champion"]
+    
+    CheckDominance -->|No| AssignExplorer[Assign "Digital Explorer"]
+    
+    AssignWizard --> ReturnTitle[Return Title]
+    AssignCrypto --> ReturnTitle
+    AssignSocial --> ReturnTitle
+    AssignCommunity --> ReturnTitle
+    AssignExplorer --> ReturnTitle
+```
+
+These flowcharts provide a comprehensive visualization of:
+1. The user's journey through the application
+2. How the score calculation algorithm processes data
+3. The detailed data pipeline from request to response
+4. How component scores are weighted and combined
+5. The database update sequence
+6. The logic for determining a user's title
+
+Together, they illustrate the complete flow of data and user interaction with the backend system.

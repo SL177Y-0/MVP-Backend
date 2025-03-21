@@ -92,6 +92,44 @@ UserSchema.pre('save', function(next) {
   next();
 });
 
+// Keep User and Score data in sync
+UserSchema.post('save', async function() {
+  try {
+    const Score = mongoose.model('Score');
+    const existingScore = await Score.findOne({ privyId: this.privyId });
+    
+    if (existingScore) {
+      // Update score record if user changed
+      await Score.findOneAndUpdate(
+        { privyId: this.privyId },
+        { 
+          username: this.username,
+          email: this.email,
+          twitterScore: this.scoreDetails?.twitterScore || existingScore.twitterScore,
+          totalScore: this.totalScore || existingScore.totalScore
+        }
+      );
+    } else {
+      // Create new score record if none exists
+      const newScore = new Score({
+        privyId: this.privyId,
+        username: this.username,
+        email: this.email,
+        twitterScore: this.scoreDetails?.twitterScore || 0,
+        telegramScore: 0,
+        totalScore: this.totalScore || 0,
+        wallets: this.walletAddress ? [{ 
+          walletAddress: this.walletAddress,
+          score: this.scoreDetails?.walletScore || 10
+        }] : []
+      });
+      await newScore.save();
+    }
+  } catch (error) {
+    console.error(`Error syncing user ${this.privyId} with score:`, error);
+  }
+});
+
 // Clear any pre-existing email indexes to avoid duplicates
 UserSchema.indexes().forEach(index => {
   if (index[0].email !== undefined) {
@@ -110,5 +148,11 @@ UserSchema.index(
     name: 'email_unique'
   }
 );
+
+// Add indexes for common query fields
+UserSchema.index({ walletAddress: 1 }, { sparse: true, background: true });
+UserSchema.index({ twitterUsername: 1 }, { sparse: true, background: true });
+UserSchema.index({ veridaUserId: 1 }, { sparse: true, background: true });
+UserSchema.index({ totalScore: -1 }, { background: true }); // For leaderboards
 
 module.exports = mongoose.model("User", UserSchema); 

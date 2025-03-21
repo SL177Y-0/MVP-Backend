@@ -18,6 +18,13 @@ const fs = require('fs');
 const path = require('path');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
+const assert = require('assert');
+const { exit } = require('process');
+
+// Models
+const User = require('../models/User');
+const Score = require('../models/Score');
+const Wallet = require('../models/Wallet');
 
 // Configuration
 const config = {
@@ -71,7 +78,11 @@ const testResults = {
   databaseStats: {
     collections: [],
     indexStats: {}
-  }
+  },
+  db: { pass: 0, fail: 0, warnings: 0 },
+  api: { pass: 0, fail: 0, warnings: 0 },
+  integration: { pass: 0, fail: 0, warnings: 0 },
+  total: { pass: 0, fail: 0, warnings: 0 }
 };
 
 // Test logger
@@ -93,6 +104,15 @@ function logTest(name, status, details = {}) {
   if (status === 'ERROR') {
     testResults.errors.push(result);
   }
+  
+  if (status.toLowerCase() === 'pass') testResults[status.toLowerCase()].pass++;
+  else if (status.toLowerCase() === 'fail') testResults[status.toLowerCase()].fail++;
+  else if (status.toLowerCase() === 'warning') testResults[status.toLowerCase()].warnings++;
+  
+  // Update totals
+  if (status.toLowerCase() === 'pass') testResults.total.pass++;
+  else if (status.toLowerCase() === 'fail') testResults.total.fail++;
+  else if (status.toLowerCase() === 'warning') testResults.total.warnings++;
   
   return status === 'SUCCESS';
 }

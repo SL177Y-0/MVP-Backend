@@ -11,6 +11,8 @@ const veridaService = require('./Services/veridaService.js');
 const veridaRoutes = require('./routes/verida.js');
 const walletRoutes = require('./routes/wallet');
 const debugRoutes = require('./routes/debug');
+const rateLimit = require('express-rate-limit');
+const { handleError } = require('./utils/errorHandler');
 
 // Import for algorithm testing
 const { evaluateUser, CollectData } = require("./controllers/NewScoreController");
@@ -30,6 +32,29 @@ app.use(cors(corsOptions));
 console.log(`✅ CORS configured for origin: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
 
 app.use(express.json());
+
+// Rate limiting middleware
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per window
+  standardHeaders: true, // Return rate limit info in RateLimit-* headers
+  legacyHeaders: false, // Disable the X-RateLimit-* headers
+  message: { success: false, error: { message: 'Too many requests, please try again later' } }
+});
+
+// Apply global rate limiting to all requests
+app.use(globalLimiter);
+
+// More strict rate limiting for sensitive endpoints
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 login attempts per hour
+  message: { success: false, error: { message: 'Too many authentication attempts, please try again later' } }
+});
+
+// Apply stricter rate limiting to auth and wallet routes
+app.use("/api/verida/auth", authLimiter);
+app.use("/api/wallet/connect", authLimiter);
 
 // API Routes
 app.use("/api/twitter", twitterRoutes);
@@ -208,6 +233,12 @@ app.get("/api/test-algorithm", async (req, res) => {
     console.error("Error testing algorithm:", error);
     return res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// Global error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Global error handler caught:', err);
+  handleError(err, res);
 });
 
 connectDB();

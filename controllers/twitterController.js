@@ -1,7 +1,7 @@
 const axios = require("axios");
 
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
-const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST;
+const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST || 'twitter241.p.rapidapi.com';
 
 // Function to delay execution (used for retrying)
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -19,8 +19,8 @@ exports.getUserDetails = async (username, retries = 3) => {
             method: "GET",
             url: "https://twitter241.p.rapidapi.com/user",
             headers: {
-                'x-rapidapi-key': '961385e952mshf11629094dfe0ecp1877e4jsnf753904efff2',
-                'x-rapidapi-host': 'twitter241.p.rapidapi.com'
+                'x-rapidapi-key': RAPIDAPI_KEY,
+                'x-rapidapi-host': RAPIDAPI_HOST
             },
             params: { username } // ✅ Use params instead of body
         };

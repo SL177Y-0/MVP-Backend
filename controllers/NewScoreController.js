@@ -3,13 +3,20 @@ const { getWalletDetails } = require("./BlockchainController.js");
 const { getTelegramData } = require("../Services/veridaService.js");
 const Score = require("../models/Score");
 const User = require("../models/User");
+const BaseController = require("../utils/baseController");
 
-async function CollectData(req, res) {
-    try {
-        console.log("🔍 Request Received:", req.method === "POST" ? req.body : req.params);
+class ScoreController extends BaseController {
+    constructor() {
+        super();
+        // Bind methods to ensure 'this' context
+        this.CollectData = this.wrapAsync(this.CollectData.bind(this));
+        this.getTotalScore = this.wrapAsync(this.getTotalScore.bind(this));
+    }
 
+    // Extract parameters from request
+    extractParameters(req) {
         let { privyId, username, address } = req.params;
-        let {email} = req.body;
+        let { email } = req.body;
 
         if (req.method === "POST") {
             if (!privyId && req.body.privyId) privyId = req.body.privyId;
@@ -19,67 +26,73 @@ async function CollectData(req, res) {
             if (!email && req.body.email) email = req.body.email;
         }
         
-        // Make sure privyId is available even for test users
-        if (!privyId) {
-            return res.status(400).json({ error: "Provide a Privy ID" });
+        // Make sure privyId is available
+        if (!privyId && req.body.userDid) {
+            privyId = req.body.userDid;
         }
-
-        console.log(`📢 Using PrivyID: ${privyId}`);
         
         // Handle multiple wallet addresses
         let walletAddresses = [];
         if (req.body.walletAddresses && Array.isArray(req.body.walletAddresses)) {
             walletAddresses = req.body.walletAddresses;
-            console.log(`📦 Processing ${walletAddresses.length} wallet addresses from request`);
             
             // Use the first address if no primary address is specified
             if (!address && walletAddresses.length > 0) {
                 address = walletAddresses[0];
-                console.log(`Using first wallet address as primary: ${address}`);
             }
         } else if (address) {
             // If only a single address is provided, add it to the array
             walletAddresses = [address];
         }
+        
+        return {
+            privyId,
+            username,
+            address,
+            email,
+            walletAddresses,
+            userDid: req.body.userDid,
+            authToken: req.body.authToken,
+            veridaUserId: req.body.veridaUserId,
+            veridaConnected: req.body.veridaConnected,
+            twitterConnected: req.body.twitterConnected,
+            walletConnected: req.body.walletConnected
+        };
+    }
 
-        // Use privyId from userDid if not provided directly
-        if (!privyId && req.body.userDid) {
-            privyId = req.body.userDid;
-            console.log(`Using userDid as privyId: ${privyId}`);
-        }
-
-        // Extract Telegram-related data
-        const { userDid, authToken, veridaUserId, veridaConnected, twitterConnected, walletConnected } = req.body;
-
-        console.log(`📢 Fetching data for: PrivyID(${privyId}), Twitter(${username || "None"}), Wallets(${walletAddresses.length}), Verida Auth(${authToken ? "Provided" : "None"})`);
-
-        let userData = null;
-        let walletData = {};
-        let telegramGroups = { items: [] };
-        let telegramMessages = { items: [] };
-
-        // ✅ Fetch Twitter Data
-        if (username) {
-            try {
-                userData = await getUserDetails(username);
-                console.log("✅ Twitter data fetched successfully");
-            } catch (err) {
-                console.error("❌ Error fetching Twitter user data:", err.message);
-                userData = { result: { legacy: {} } }; // Provide empty structure to prevent errors
-            }
-        } else {
-            userData = { result: { legacy: {} } }; // Provide empty structure to prevent errors
-        }
-
-        // ✅ Fetch Wallet Data for the primary address
-        if (address) {
-            try {
-                walletData = await getWalletDetails(address);
-                console.log("✅ Wallet data fetched successfully for primary address");
-            } catch (err) {
-                console.error("❌ Error fetching wallet data:", err.message);
-                // Initialize empty wallet data structure
-                walletData = {
+    // Fetch data from all sources in parallel
+    async fetchAllData(params) {
+        console.log(`📢 Fetching data for: PrivyID(${params.privyId}), Twitter(${params.username || "None"}), Wallets(${params.walletAddresses.length}), Verida Auth(${params.authToken ? "Provided" : "None"})`);
+        
+        const dataPromises = [];
+        
+        // Twitter data promise
+        dataPromises.push(
+            params.username ? 
+                getUserDetails(params.username).catch(err => {
+                    console.error("❌ Error fetching Twitter user data:", err.message);
+                    return { result: { legacy: {} } };
+                }) : 
+                Promise.resolve({ result: { legacy: {} } })
+        );
+        
+        // Wallet data promise
+        dataPromises.push(
+            params.address ?
+                getWalletDetails(params.address).catch(err => {
+                    console.error("❌ Error fetching wallet data:", err.message);
+                    return {
+                        "Native Balance Result": 0,
+                        "Token Balances Result": [],
+                        "Active Chains Result": { activeChains: [] },
+                        "DeFi Positions Summary Result": [],
+                        "Resolved Address Result": null,
+                        "Wallet NFTs Result": [],
+                        "Transaction Count": 0,
+                        "Unique Token Interactions": 0
+                    };
+                }) :
+                Promise.resolve({
                     "Native Balance Result": 0,
                     "Token Balances Result": [],
                     "Active Chains Result": { activeChains: [] },
@@ -88,127 +101,124 @@ async function CollectData(req, res) {
                     "Wallet NFTs Result": [],
                     "Transaction Count": 0,
                     "Unique Token Interactions": 0
-                };
-            }
-        } else {
-            // Initialize empty wallet data structure
-            walletData = {
-                "Native Balance Result": 0,
-                "Token Balances Result": [],
-                "Active Chains Result": { activeChains: [] },
-                "DeFi Positions Summary Result": [],
-                "Resolved Address Result": null,
-                "Wallet NFTs Result": [],
-                "Transaction Count": 0,
-                "Unique Token Interactions": 0
-            };
-        }
-
-        // ✅ Fetch Telegram Data from Verida API
-        if (userDid && authToken) {
-            try {
-                console.log(`📊 Fetching Telegram data for: PrivyID(${privyId}), Verida DID(${userDid})`);
-                
-                const telegramData = await getTelegramData(userDid, authToken);
-                
-                if (telegramData) {
-                    console.log("✅ Telegram data fetched successfully");
-                    telegramGroups = { items: Array.isArray(telegramData.groups) ? telegramData.groups : [] };
-                    telegramMessages = { items: Array.isArray(telegramData.messages) ? telegramData.messages : [] };
-                } else {
-                    console.log("⚠️ No Telegram data returned from Verida service");
-                }
-            } catch (err) {
-                console.error("❌ Error fetching Telegram data:", err.message);
-            }
-        }
-
-        // ✅ Calculate scores using the algorithm
-        const evaluationResult = evaluateUser(userData, walletData, telegramGroups, telegramMessages);
-        console.log("✅ Score evaluation completed", JSON.stringify(evaluationResult.scores));
+                })
+        );
         
-        // ✅ Update or create user score record
-        try {
-            // Find existing score record or create new one
-            let scoreRecord = await Score.findOne({ privyId });
+        // Telegram data promise
+        dataPromises.push(
+            (params.userDid && params.authToken) ?
+                getTelegramData(params.userDid, params.authToken).catch(err => {
+                    console.error("❌ Error fetching Telegram data:", err.message);
+                    return {
+                        groups: [],
+                        messages: []
+                    };
+                }) :
+                Promise.resolve({ groups: [], messages: [] })
+        );
+        
+        // Wait for all data to be fetched in parallel
+        const [userData, walletData, telegramData] = await Promise.all(dataPromises);
+        
+        console.log("✅ All data fetched in parallel successfully");
+        
+        // Process telegram data
+        const telegramGroups = { items: Array.isArray(telegramData.groups) ? telegramData.groups : [] };
+        const telegramMessages = { items: Array.isArray(telegramData.messages) ? telegramData.messages : [] };
+        
+        return { userData, walletData, telegramGroups, telegramMessages };
+    }
+
+    // Save evaluation results to database
+    async saveResults(privyId, evaluationResult, params) {
+        // Find existing score record or create new one
+        let scoreRecord = await Score.findOne({ privyId });
+        
+        if (!scoreRecord) {
+            console.log(`Creating new score record for PrivyID: ${privyId}`);
+            scoreRecord = new Score({
+                privyId,
+                username: params.username || null,
+                email: params.email || null,
+                badges: [],
+                wallets: []
+            });
+        } else {
+            console.log(`Updating existing score record for PrivyID: ${privyId}`);
+        }
+        
+        // Update score record with new calculated scores
+        scoreRecord.twitterScore = evaluationResult.scores.socialScore || 0;
+        scoreRecord.telegramScore = evaluationResult.scores.telegramScore || 0;
+        
+        // Add badges 
+        scoreRecord.badges = Object.keys(evaluationResult.badges);
+        
+        // Process all wallet addresses
+        let totalWalletScore = 0;
+        
+        // Update each wallet in the walletAddresses array
+        for (const walletAddress of params.walletAddresses) {
+            if (!walletAddress) continue;
             
-            if (!scoreRecord) {
-                console.log(`Creating new score record for PrivyID: ${privyId}`);
-                scoreRecord = new Score({
-                    privyId,
-                    username: username || null,
-                    email: email || null,
-                    badges: [],
-                    wallets: []
-                });
-            } else {
-                console.log(`Updating existing score record for PrivyID: ${privyId}`);
-            }
+            // Check if this wallet already exists in the record
+            const walletIndex = scoreRecord.wallets.findIndex(w => w.walletAddress === walletAddress);
             
-            // Update score record with new calculated scores
-            scoreRecord.twitterScore = evaluationResult.scores.socialScore || 0;
-            scoreRecord.telegramScore = evaluationResult.scores.telegramScore || 0;
+            // For the primary address, use the calculated score
+            // For other addresses, assign a default score if they don't exist
+            const walletScore = (walletAddress === params.address) 
+                ? (evaluationResult.scores.cryptoScore || 0) + (evaluationResult.scores.nftScore || 0)
+                : 10; // Default score for additional wallets
             
-            // Add badges 
-            scoreRecord.badges = Object.keys(evaluationResult.badges);
-            
-            // Process all wallet addresses
-            let totalWalletScore = 0;
-            
-            // Update each wallet in the walletAddresses array
-            for (const walletAddress of walletAddresses) {
-                if (!walletAddress) continue;
-                
-                // Check if this wallet already exists in the record
-                const walletIndex = scoreRecord.wallets.findIndex(w => w.walletAddress === walletAddress);
-                
-                // For the primary address, use the calculated score
-                // For other addresses, assign a default score if they don't exist
-                const walletScore = (walletAddress === address) 
-                    ? (evaluationResult.scores.cryptoScore || 0) + (evaluationResult.scores.nftScore || 0)
-                    : 10; // Default score for additional wallets
-                
-                if (walletIndex >= 0) {
-                    // Only update the score for the primary address
-                    if (walletAddress === address) {
-                        scoreRecord.wallets[walletIndex].score = walletScore;
-                        console.log(`✅ Updated existing wallet score: ${walletAddress} = ${walletScore}`);
-                    } else {
-                        console.log(`ℹ️ Existing additional wallet: ${walletAddress}, score = ${scoreRecord.wallets[walletIndex].score}`);
-                    }
+            if (walletIndex >= 0) {
+                // Only update the score for the primary address
+                if (walletAddress === params.address) {
+                    scoreRecord.wallets[walletIndex].score = walletScore;
+                    console.log(`✅ Updated existing wallet score: ${walletAddress} = ${walletScore}`);
                 } else {
-                    // Add the new wallet
-                    scoreRecord.wallets.push({
-                        walletAddress: walletAddress,
-                        score: walletScore
-                    });
-                    console.log(`✅ Added new wallet with score: ${walletAddress} = ${walletScore}`);
+                    console.log(`ℹ️ Existing additional wallet: ${walletAddress}, score = ${scoreRecord.wallets[walletIndex].score}`);
                 }
+            } else {
+                // Add the new wallet
+                scoreRecord.wallets.push({
+                    walletAddress: walletAddress,
+                    score: walletScore
+                });
+                console.log(`✅ Added new wallet with score: ${walletAddress} = ${walletScore}`);
             }
-            
-            // Recalculate total wallet score as the sum of all wallet scores
-            totalWalletScore = scoreRecord.wallets.reduce((sum, wallet) => sum + wallet.score, 0);
-            
-            // Update total score
-            scoreRecord.totalScore = scoreRecord.twitterScore + scoreRecord.telegramScore + totalWalletScore;
-            
-            // Save the score record
-            await scoreRecord.save();
-            console.log(`✅ Score record saved successfully: ${scoreRecord._id}`);
-            console.log(`✅ Score updated for PrivyID: ${privyId}, Total score: ${scoreRecord.totalScore}`);
-            
-            // Also update User model if it exists
+        }
+        
+        // Recalculate total wallet score as the sum of all wallet scores
+        totalWalletScore = scoreRecord.wallets.reduce((sum, wallet) => sum + wallet.score, 0);
+        
+        // Update total score
+        scoreRecord.totalScore = scoreRecord.twitterScore + scoreRecord.telegramScore + totalWalletScore;
+        
+        // Save the score record
+        await scoreRecord.save();
+        console.log(`✅ Score record saved successfully: ${scoreRecord._id}`);
+        console.log(`✅ Score updated for PrivyID: ${privyId}, Total score: ${scoreRecord.totalScore}`);
+
+        // Also update User model if it exists
+        await this.updateUserRecord(privyId, evaluationResult, params, totalWalletScore);
+        
+        return { scoreRecord, totalWalletScore };
+    }
+
+    // Update or create User record
+    async updateUserRecord(privyId, evaluationResult, params, totalWalletScore) {
+        try {
             const user = await User.findOne({ privyId });
             if (user) {
                 // Update connection statuses if provided
-                if (veridaConnected !== undefined) user.veridaConnected = veridaConnected;
-                if (veridaUserId) user.veridaUserId = veridaUserId;
-                if (twitterConnected !== undefined) user.twitterConnected = twitterConnected;
-                if (walletConnected !== undefined) user.walletConnected = walletConnected;
-                if (username) user.twitterUsername = username;
+                if (params.veridaConnected !== undefined) user.veridaConnected = params.veridaConnected;
+                if (params.veridaUserId) user.veridaUserId = params.veridaUserId;
+                if (params.twitterConnected !== undefined) user.twitterConnected = params.twitterConnected;
+                if (params.walletConnected !== undefined) user.walletConnected = params.walletConnected;
+                if (params.username) user.twitterUsername = params.username;
                 
                 // Update overall total score
-                user.totalScore = scoreRecord.totalScore;
+                user.totalScore = evaluationResult.scores.socialScore + evaluationResult.scores.telegramScore + totalWalletScore;
                 
                 // Update score components
                 if (!user.scoreDetails) {
@@ -236,7 +246,7 @@ async function CollectData(req, res) {
                     cryptoScore: evaluationResult.scores.cryptoScore,
                     nftScore: evaluationResult.scores.nftScore,
                     totalWalletScore: totalWalletScore,
-                    walletCount: scoreRecord.wallets.length,
+                    walletCount: params.walletAddresses.length,
                     badges: Object.keys(evaluationResult.badges).filter(badge => 
                         ["Chain Explorer", "Token Holder", "NFT Networker", 
                          "DeFi Drifter", "Gas Spender", "Staking Veteran", 
@@ -261,55 +271,106 @@ async function CollectData(req, res) {
                 
                 user.lastScoreUpdate = new Date();
                 await user.save();
-                console.log(`✅ User record also updated for PrivyID: ${privyId}`);
+                console.log(`✅ User record updated for PrivyID: ${privyId}`);
             } else {
                 // Create a new User record if one doesn't exist
-                try {
-                    console.log(`No User record found, creating new one for PrivyID: ${privyId}`);
-                    const newUser = new User({
-                        privyId,
-                        email: email || null,
-                        twitterUsername: username || null,
-                        totalScore: scoreRecord.totalScore,
-                        walletAddress: address || null,
-                        walletConnected: !!address,
-                        scoreDetails: {
-                            twitterScore: evaluationResult.scores.socialScore || 0,
-                            walletScore: totalWalletScore,
-                            veridaScore: evaluationResult.scores.telegramScore || 0
-                        },
-                        lastScoreUpdate: new Date()
-                    });
-                    await newUser.save();
-                    console.log(`✅ New User record created for PrivyID: ${privyId}`);
-                } catch (userCreateError) {
-                    console.error("❌ Error creating new User record:", userCreateError.message);
-                }
+                console.log(`No User record found, creating new one for PrivyID: ${privyId}`);
+                const newUser = new User({
+                    privyId,
+                    email: params.email || null,
+                    twitterUsername: params.username || null,
+                    totalScore: evaluationResult.scores.socialScore + evaluationResult.scores.telegramScore + totalWalletScore,
+                    walletAddress: params.address || null,
+                    walletConnected: !!params.address,
+                    scoreDetails: {
+                        twitterScore: evaluationResult.scores.socialScore || 0,
+                        walletScore: totalWalletScore,
+                        veridaScore: evaluationResult.scores.telegramScore || 0
+                    },
+                    lastScoreUpdate: new Date()
+                });
+                await newUser.save();
+                console.log(`✅ New User record created for PrivyID: ${privyId}`);
             }
-        } catch (dbError) {
-            console.error("❌ Error saving score to database:", dbError.message);
-            // Continue execution even if db save fails
+        } catch (error) {
+            console.error("❌ Error updating User record:", error.message);
         }
+    }
 
-        // Make sure scores include the values from the evaluation
-        const responseScores = {
-            ...evaluationResult.scores,
-            // Ensure we're returning the direct calculation results even if DB save failed
-            totalScore: evaluationResult.scores.totalScore || 0,
-        };
+    // Main controller method
+    async CollectData(req, res) {
+        try {
+            console.log("🔍 Request Received:", req.method === "POST" ? req.body : req.params);
+            
+            // 1. Extract parameters from request
+            const params = this.extractParameters(req);
+            
+            // Check for required privyId
+            if (!params.privyId) {
+                return this.sendError(res, "Provide a Privy ID", 400);
+            }
+            
+            // 2. Fetch data from all sources in parallel
+            const { userData, walletData, telegramGroups, telegramMessages } = await this.fetchAllData(params);
+            
+            // 3. Calculate scores using the algorithm
+            const evaluationResult = evaluateUser(userData, walletData, telegramGroups, telegramMessages);
+            console.log("✅ Score evaluation completed", JSON.stringify(evaluationResult.scores));
+            
+            // 4. Save results to database
+            try {
+                await this.saveResults(params.privyId, evaluationResult, params);
+            } catch (dbError) {
+                console.error("❌ Error saving score to database:", dbError.message);
+                // Continue execution even if db save fails
+            }
+            
+            // 5. Send response
+            return this.sendSuccess(res, {
+                privyId: params.privyId,
+                title: evaluationResult.title,
+                badges: evaluationResult.badges,
+                scores: evaluationResult.scores,
+                walletCount: params.walletAddresses.length
+            });
+        } catch (error) {
+            console.error("❌ Error calculating score:", error.message);
+            return this.sendError(res, error.message, 500);
+        }
+    }
 
-        return res.json({ 
-            success: true,
-            privyId,
-            title: evaluationResult.title,
-            badges: evaluationResult.badges,
-            scores: responseScores,
-            walletCount: walletAddresses.length
-        });
+    // Get total score from database
+    async getTotalScore(req, res) {
+        try {
+            const { privyId } = req.params;
 
-    } catch (error) {
-        console.error("❌ Error calculating score:", error.message);
-        return res.status(500).json({ error: "Server Error", message: error.message });
+            if (!privyId) {
+                return this.sendError(res, "Privy ID is required", 400);
+            }
+
+            console.log(`📢 Fetching total score for PrivyID: ${privyId}`);
+
+            const userEntry = await Score.findOne({ privyId });
+
+            if (!userEntry) {
+                return this.sendSuccess(res, { 
+                    totalScore: 0, 
+                    wallets: [], 
+                    badges: [] 
+                });
+            }
+
+            return this.sendSuccess(res, {
+                totalScore: userEntry.totalScore || 0,
+                twitterScore: userEntry.twitterScore || 0,
+                telegramScore: userEntry.telegramScore || 0,
+                walletScores: userEntry.wallets || [],
+                badges: userEntry.badges || []
+            });
+        } catch (error) {
+            console.error("❌ Error fetching total score:", error.message);
+            return this.sendError(res, "Server Error", 500);
+        }
     }
 }
 
@@ -699,38 +760,5 @@ function evaluateUser(twitterData, walletData, telegramGroups, telegramMessages)
     }
 }
 
-// ✅ Function to Fetch Total Score from Database
-async function getTotalScore(req, res) {
-    try {
-        const { privyId } = req.params;
-
-        if (!privyId) {
-            return res.status(400).json({ error: "Privy ID is required" });
-        }
-
-        console.log(`📢 Fetching total score for PrivyID: ${privyId}`);
-
-        const userEntry = await Score.findOne({ privyId });
-
-        if (!userEntry) {
-            return res.json({ totalScore: 0, wallets: [], badges: [] });
-        }
-
-        return res.json({
-            totalScore: userEntry.totalScore || 0,
-            twitterScore: userEntry.twitterScore || 0,
-            telegramScore: userEntry.telegramScore || 0,
-            walletScores: userEntry.wallets || [],
-            badges: userEntry.badges || []
-        });
-    } catch (error) {
-        console.error("❌ Error fetching total score:", error.message);
-        return res.status(500).json({ error: "Server Error" });
-    }
-}
-
-module.exports = {
-    CollectData,
-    evaluateUser,
-    getTotalScore
-};
+// Export the new class instance instead of functions
+module.exports = new ScoreController();
