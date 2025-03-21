@@ -1,3 +1,6 @@
+# Read DOCS Folder To Better Understand
+
+
 # MVP Backend Improvements
 
 Based on the comprehensive code analysis in `fixes.txt`, here are the key improvements that should be applied to the backend:
