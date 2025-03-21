@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const ScoreSchema = new mongoose.Schema({
     privyId: { type: String, required: true, unique: true },
     username: { type: String, default: null },
-    email: { type: String, unique: true, sparse: true }, 
+    email: { type: String },
     twitterScore: { type: Number, default: 0 },
     telegramScore: { type: Number, default: 0 },  
     totalScore: { type: Number, default: 0 },  
@@ -33,5 +33,16 @@ ScoreSchema.index({ totalScore: -1 }, { background: true }); // For leaderboards
 ScoreSchema.index({ 'wallets.walletAddress': 1 }, { background: true, sparse: true });
 ScoreSchema.index({ username: 1 }, { background: true, sparse: true });
 ScoreSchema.index({ lastScoreUpdate: -1 }, { background: true }); // For recent updates
+
+// Create a proper unique index for email that only applies to non-null values
+// This is a better approach than sparse:true for handling null emails
+ScoreSchema.index(
+  { email: 1 }, 
+  { 
+    unique: true, 
+    background: true,
+    partialFilterExpression: { email: { $type: "string" } }  // Only apply uniqueness to non-null, non-undefined emails
+  }
+);
 
 module.exports = mongoose.model("Score", ScoreSchema);

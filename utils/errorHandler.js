@@ -20,7 +20,15 @@ class AppError extends Error {
  */
 const catchAsync = fn => {
   return (req, res, next) => {
-    fn(req, res, next).catch(next);
+    // Check if fn returns a Promise before calling catch
+    const result = fn(req, res, next);
+    if (result && typeof result.catch === 'function') {
+      return result.catch(err => {
+        console.error(`Error caught by catchAsync: ${err.message}`);
+        next(err);
+      });
+    }
+    return result;
   };
 };
 

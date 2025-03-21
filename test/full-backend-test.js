@@ -237,11 +237,22 @@ async function testScoreApi() {
     
     // Test total score endpoint
     try {
-      const totalScoreResponse = await axios.get(`${API_URL}/api/score/total-score/${testUser.privyId}`);
+      console.log(`Testing total score endpoint for user: ${testUser.privyId}`);
+      const totalScoreResponse = await axios.get(`${API_URL}/api/score/total-score/${testUser.privyId}`, {
+        validateStatus: false // Don't throw on error status codes
+      });
+      
+      console.log(`Total score response: ${totalScoreResponse.status}`);
+      
       if (totalScoreResponse.status === 200) {
         await log('api', 'Total Score Endpoint', 'PASS', 'Total score endpoint works');
+        console.log(`Response data: ${JSON.stringify(totalScoreResponse.data)}`);
+      } else {
+        console.error(`Error response: ${JSON.stringify(totalScoreResponse.data)}`);
+        await log('api', 'Total Score Endpoint', 'FAIL', `Total score endpoint error: Status ${totalScoreResponse.status}`);
       }
     } catch (err) {
+      console.error(`Exception in total score endpoint: ${err.stack}`);
       await log('api', 'Total Score Endpoint', 'FAIL', `Total score endpoint error: ${err.message}`);
     }
     

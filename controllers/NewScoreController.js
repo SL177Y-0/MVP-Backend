@@ -10,7 +10,6 @@ class ScoreController extends BaseController {
         super();
         // Bind methods to ensure 'this' context
         this.CollectData = this.wrapAsync(this.CollectData.bind(this));
-        this.getTotalScore = this.wrapAsync(this.getTotalScore.bind(this));
     }
 
     // Extract parameters from request
@@ -339,37 +338,82 @@ class ScoreController extends BaseController {
         }
     }
 
-    // Get total score from database
-    async getTotalScore(req, res) {
+    // Get total score for a user by privyId
+    static async getTotalScore(req, res) {
         try {
+            console.log('GetTotalScore method called');
             const { privyId } = req.params;
-
+            
             if (!privyId) {
-                return this.sendError(res, "Privy ID is required", 400);
-            }
-
-            console.log(`📢 Fetching total score for PrivyID: ${privyId}`);
-
-            const userEntry = await Score.findOne({ privyId });
-
-            if (!userEntry) {
-                return this.sendSuccess(res, { 
-                    totalScore: 0, 
-                    wallets: [], 
-                    badges: [] 
+                console.error('Missing privyId parameter');
+                return res.status(400).json({
+                    success: false,
+                    error: 'Missing required parameter: privyId'
                 });
             }
-
-            return this.sendSuccess(res, {
-                totalScore: userEntry.totalScore || 0,
-                twitterScore: userEntry.twitterScore || 0,
-                telegramScore: userEntry.telegramScore || 0,
-                walletScores: userEntry.wallets || [],
-                badges: userEntry.badges || []
+            
+            console.log(`Fetching total score for privyId: ${privyId}`);
+            
+            // Find score entry by privyId
+            const scoreEntry = await Score.findOne({ privyId }).lean();
+            
+            if (!scoreEntry) {
+                console.log(`No score record found for privyId: ${privyId}`);
+                
+                // Check if user exists but doesn't have a score record yet
+                const userEntry = await User.findOne({ privyId }).lean();
+                
+                if (userEntry) {
+                    console.log(`User found, but no score record. Creating default score record.`);
+                    
+                    // Create default score record
+                    const defaultScore = {
+                        privyId,
+                        email: userEntry.email,
+                        username: userEntry.username,
+                        totalScore: 0,
+                        walletScores: [],
+                        badges: []
+                    };
+                    
+                    if (userEntry.addresses && userEntry.addresses.length > 0) {
+                        defaultScore.walletAddresses = userEntry.addresses;
+                    }
+                    
+                    await Score.create(defaultScore);
+                    console.log(`Created default score record for user: ${privyId}`);
+                    
+                    return res.status(200).json({
+                        success: true,
+                        data: defaultScore
+                    });
+                }
+                
+                // No user or score found
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        totalScore: 0,
+                        walletScores: [],
+                        badges: []
+                    }
+                });
+            }
+            
+            console.log(`Returning score data: totalScore=${scoreEntry.totalScore}, wallets=${scoreEntry.walletScores?.length || 0}, badges=${scoreEntry.badges?.length || 0}`);
+            
+            return res.status(200).json({
+                success: true,
+                data: scoreEntry
             });
         } catch (error) {
-            console.error("❌ Error fetching total score:", error.message);
-            return this.sendError(res, "Server Error", 500);
+            console.error(`Error in getTotalScore method: ${error.message}`);
+            console.error(error.stack);
+            return res.status(500).json({
+                success: false,
+                error: 'Server error',
+                message: error.message
+            });
         }
     }
 }
