@@ -15,14 +15,7 @@ const ScoreSchema = new mongoose.Schema({
             lastUpdated: { type: Date, default: Date.now }
         }
     ],
-    badges: [
-        { 
-            name: String,
-            level: { type: String, enum: ['Bronze', 'Silver', 'Gold', 'Platinum'] },
-            value: Number,
-            earnedDate: { type: Date, default: Date.now }
-        }
-    ],
+    badges: { type: [String], default: [] },
     lastScoreUpdate: { type: Date, default: Date.now }
 }, { 
     timestamps: true 

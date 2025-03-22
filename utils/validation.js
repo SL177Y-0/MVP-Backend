@@ -21,7 +21,9 @@ const schemas = {
   scoreRequest: Joi.object({
     privyId: Joi.string().required(),
     username: Joi.string().allow(null, ''),
+    twitterUsername: Joi.string().allow(null, ''),
     address: Joi.string().allow(null, ''),
+    walletAddress: Joi.string().allow(null, ''),
     email: Joi.string().email().allow(null, ''),
     walletAddresses: Joi.array().items(Joi.string()),
     userDid: Joi.string().allow(null, ''),

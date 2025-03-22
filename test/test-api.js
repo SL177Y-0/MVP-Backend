@@ -15,8 +15,8 @@ dotenv.config();
 
 // Configuration
 const BASE_URL = 'http://localhost:5000';
-const TEST_USER_ID = 'test-api-user-' + Date.now();
-const TEST_WALLET = '0xTestWallet' + Date.now().toString().slice(-8);
+let TEST_USER_ID = 'test-api-user-' + Date.now();
+let TEST_WALLET = '0xTestWallet' + Date.now().toString().slice(-8);
 
 // Helper for logging
 function logSection(title) {
@@ -34,8 +34,8 @@ async function testScoreAPI() {
     console.log('Testing POST /api/score/get-score');
     const postResponse = await axios.post(`${BASE_URL}/api/score/get-score`, {
       privyId: TEST_USER_ID,
-      twitterUsername: 'testuser',
-      walletAddress: TEST_WALLET,
+      walletAddresses: [TEST_WALLET],
+      username: 'testuser',
       email: 'test@example.com'
     });
     
@@ -50,18 +50,18 @@ async function testScoreAPI() {
     console.log('Response Data:', JSON.stringify(getResponse.data, null, 2));
     
     // Verify the scores match
-    if (postResponse.data.scores.totalScore === getResponse.data.totalScore) {
+    if (postResponse.data.scores.totalScore === getResponse.data.data?.totalScore) {
       console.log('\n✅ Scores match between POST and GET endpoints!');
     } else {
       console.log('\n❌ Score mismatch between POST and GET endpoints');
       console.log(`POST score: ${postResponse.data.scores.totalScore}`);
-      console.log(`GET score: ${getResponse.data.totalScore}`);
+      console.log(`GET score: ${getResponse.data.data?.totalScore}`);
     }
     
     return { 
       success: true, 
       postScore: postResponse.data.scores.totalScore,
-      getScore: getResponse.data.totalScore
+      getScore: getResponse.data.data?.totalScore
     };
   } catch (error) {
     console.error('Error testing Score API:', error.message);
@@ -137,8 +137,8 @@ async function testFullFlow() {
     console.log('\n2. Calculating score');
     const scoreResponse = await axios.post(`${BASE_URL}/api/score/get-score`, {
       privyId: TEST_USER_ID,
-      walletAddress: TEST_WALLET,
-      twitterUsername: 'testuser'
+      walletAddresses: [TEST_WALLET],
+      username: 'testuser'
     });
     console.log(`Score calculated: ${scoreResponse.status === 200}`);
     console.log(`Total score: ${scoreResponse.data.scores.totalScore}`);
@@ -154,7 +154,16 @@ async function testFullFlow() {
     console.log('\n4. Getting total score');
     const totalResponse = await axios.get(`${BASE_URL}/api/score/total-score/${TEST_USER_ID}`);
     console.log(`Got total score: ${totalResponse.status === 200}`);
-    console.log(`Total score: ${totalResponse.data.totalScore}`);
+    console.log(`Total score from endpoint: ${totalResponse.data.data?.totalScore}`);
+
+    // We need to check all scores
+    if (scoreResponse.data.scores.totalScore !== totalResponse.data.data?.totalScore) {
+        console.log('⚠️ Score mismatch between POST and GET endpoints:');
+        console.log(`  - POST score: ${scoreResponse.data.scores.totalScore}`);
+        console.log(`  - GET score: ${totalResponse.data.data?.totalScore}`);
+    } else {
+        console.log('✅ Scores match between POST and GET endpoints');
+    }
     
     console.log('\n✅ Full flow test completed successfully!');
     return true;
@@ -167,23 +176,43 @@ async function testFullFlow() {
 
 // Main function
 async function runTests() {
-  console.log('🧪 TESTING API WITH FIXES');
-  console.log(`Test User ID: ${TEST_USER_ID}`);
-  console.log(`Test Wallet: ${TEST_WALLET}`);
-  
   try {
-    // Check if server is running
-    const healthCheck = await axios.get(`${BASE_URL}/api/health`);
-    console.log(`Server is running: ${healthCheck.status === 200}`);
+    // Generate unique test user ID for this test run
+    TEST_USER_ID = `test-api-user-${Date.now()}`;
+    TEST_WALLET = `0xTestWallet${Date.now().toString().slice(-8)}`;
     
-    // Run tests
+    console.log('🧪 TESTING API WITH FIXES');
+    console.log(`Test User ID: ${TEST_USER_ID}`);
+    console.log(`Test Wallet: ${TEST_WALLET}`);
+    
+    // Check if server is running
+    try {
+      const healthCheck = await axios.get(`${BASE_URL}/api/health`);
+      console.log(`Server is running: ${healthCheck.status === 200}`);
+    } catch (e) {
+      console.error('❌ Server is not running or health check failed:', e.message);
+      return;
+    }
+    
+    console.log('\nRunning Score API test...');
     await testScoreAPI();
+    
+    console.log('\nRunning Wallet API test...');
     await testWalletAPI();
+    
+    console.log('\nRunning Full Flow test...');
     await testFullFlow();
     
     console.log('\n🎉 All tests completed!');
   } catch (error) {
     console.error('Error during tests:', error.message);
+    if (error.stack) {
+      console.error(error.stack);
+    }
+    if (error.response) {
+      console.error('Response status:', error.response.status);
+      console.error('Response data:', error.response.data);
+    }
   }
 }
 

@@ -27,8 +27,8 @@ router.get("/total-score/:privyId", async (req, res) => {
         
         console.log(`Fetching total score for privyId: ${privyId}`);
         
-        // Find the score record
-        const scoreRecord = await Score.findOne({ privyId });
+        // Find the score record - use latest version by timestamp
+        const scoreRecord = await Score.findOne({ privyId }).sort({ updatedAt: -1 });
         
         if (!scoreRecord) {
             console.log(`No score record found for privyId: ${privyId}`);
@@ -37,6 +37,7 @@ router.get("/total-score/:privyId", async (req, res) => {
             const userRecord = await User.findOne({ privyId });
             
             if (userRecord) {
+                console.log(`Found user record for ${privyId} with score: ${userRecord.totalScore || 0}`);
                 // Return user's score data
                 return res.status(200).json({
                     success: true,
@@ -45,6 +46,7 @@ router.get("/total-score/:privyId", async (req, res) => {
                         totalScore: userRecord.totalScore || 0,
                         twitterScore: userRecord.scoreDetails?.twitterScore || 0,
                         telegramScore: userRecord.scoreDetails?.veridaScore || 0,
+                        wallets: [],  // Add empty wallets array for consistency
                         badges: []
                     }
                 });
@@ -55,10 +57,15 @@ router.get("/total-score/:privyId", async (req, res) => {
                 success: true,
                 data: {
                     totalScore: 0,
+                    twitterScore: 0,
+                    telegramScore: 0,
+                    wallets: [],  // Add empty wallets array for consistency
                     badges: []
                 }
             });
         }
+        
+        console.log(`Found score record for ${privyId} with total score: ${scoreRecord.totalScore || 0}`);
         
         // Return score data
         return res.status(200).json({
