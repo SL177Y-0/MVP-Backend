@@ -1,23 +1,331 @@
 [
   {
-    "id": "badge_001",
-    "label": "Top Contributor",
-    "message": "Gold Tier",
-    "description": "Awarded for making the most contributions.",
-    "path": "C:\\Users\\SL177Y\\Pictures\\cluster-main-main\\Backend\\badges\\badge_001.svg"
+    "id": "influence_investor",
+    "label": "Influence Investor",
+    "message": "Awarded for having a significant follower count",
+    "description": "A badge for users with exceptional social media influence",
+    "path": "badges/InfluenceInvestor.png"
   },
   {
-    "id": "badge_002",
-    "label": "Bug Hunter",
-    "message": "Elite",
-    "description": "Given for identifying and resolving critical bugs.",
-    "path": "C:\\Users\\SL177Y\\Pictures\\cluster-main-main\\Backend\\badges\\badge_002.svg"
+    "id": "tweet_trader",
+    "label": "Tweet Trader",
+    "message": "Active tweeting and engagement",
+    "description": "Awarded for consistently sharing content and engaging with others",
+    "path": "badges/TweetTrader.png"
   },
   {
-    "id": "badge_003",
-    "label": "Mentor",
-    "message": "Guide",
-    "description": "Recognized for mentoring new team members and providing guidance.",
-    "path": "C:\\Users\\SL177Y\\Pictures\\cluster-main-main\\Backend\\badges\\badge_003.svg"
+    "id": "engagement_economist",
+    "label": "Engagement Economist",
+    "message": "High interaction metrics",
+    "description": "Recognized for meaningful engagement with content across platforms",
+    "path": "badges/EngagementEconomist.png"
+  },
+  {
+    "id": "media_mogul",
+    "label": "Media Mogul",
+    "message": "Media content creator",
+    "description": "Awarded for sharing rich media content regularly",
+    "path": "badges/MediaMogul.png"
+  },
+  {
+    "id": "list_legend",
+    "label": "List Legend",
+    "message": "Featured in multiple lists",
+    "description": "Recognized for being included in many curated lists",
+    "path": "badges/ListLegend.png"
+  },
+  {
+    "id": "verified_visionary",
+    "label": "Verified Visionary",
+    "message": "Verified account status",
+    "description": "Badge for verified accounts with proven authenticity",
+    "path": "badges/VerifiedVisionary.png"
+  },
+  {
+    "id": "pinned_post_pro",
+    "label": "Pinned Post Pro",
+    "message": "Strategic content pinning",
+    "description": "Awarded for effectively using pinned content",
+    "path": "badges/PinnedPostPro.png"
+  },
+  {
+    "id": "super_follower",
+    "label": "Super Follower",
+    "message": "Premium content supporter",
+    "description": "Recognizes users who participate in paid content ecosystems",
+    "path": "badges/SuperFollower.png"
+  },
+  {
+    "id": "creator_subscriber",
+    "label": "Creator Subscriber",
+    "message": "Supports multiple creators",
+    "description": "Badge for users who subscribe to many content creators",
+    "path": "badges/CreatorSubscriber.png"
+  },
+  {
+    "id": "twitter_veteran",
+    "label": "Twitter Veteran",
+    "message": "Long-term platform user",
+    "description": "Awarded for long-standing presence on social platforms",
+    "path": "badges/TwitterVeteran.png"
+  },
+  {
+    "id": "retweet_riches",
+    "label": "Retweet Riches",
+    "message": "Content amplifier",
+    "description": "Recognizes users who effectively amplify content",
+    "path": "badges/RetweetRiches.png"
+  },
+  {
+    "id": "crypto_communicator",
+    "label": "Crypto Communicator",
+    "message": "Blockchain conversation starter",
+    "description": "Awarded for actively discussing crypto and blockchain topics",
+    "path": "badges/CryptoCommunicator.png"
+  },
+  {
+    "id": "social_connector",
+    "label": "Social Connector",
+    "message": "Network builder",
+    "description": "Recognition for connecting diverse communities",
+    "path": "badges/SocialConnector.png"
+  },
+  {
+    "id": "engagement_star",
+    "label": "Engagement Star",
+    "message": "Exceptional interaction metrics",
+    "description": "Badge for users with outstanding engagement statistics",
+    "path": "badges/EngagementStar.png"
+  },
+  {
+    "id": "fast_grower",
+    "label": "Fast Grower",
+    "message": "Rapid audience growth",
+    "description": "Awarded for quickly building a significant following",
+    "path": "badges/FastGrower.png"
+  },
+  {
+    "id": "viral_validator",
+    "label": "Viral Validator",
+    "message": "Content that spreads",
+    "description": "Recognition for creating content that goes viral",
+    "path": "badges/ViralValidator.png"
+  },
+  {
+    "id": "chain_explorer",
+    "label": "Chain Explorer",
+    "message": "Multi-chain participant",
+    "description": "Awarded for activity across multiple blockchain networks",
+    "path": "badges/ChainExplorer.png"
+  },
+  {
+    "id": "token_holder",
+    "label": "Token Holder",
+    "message": "Diverse token portfolio",
+    "description": "Badge for users who hold a variety of tokens",
+    "path": "badges/TokenHolder.png"
+  },
+  {
+    "id": "nft_networker",
+    "label": "NFT Networker",
+    "message": "Digital collectibles enthusiast",
+    "description": "Awarded for participation in NFT communities",
+    "path": "badges/NFTNetworker.png"
+  },
+  {
+    "id": "defi_drifter",
+    "label": "DeFi Drifter",
+    "message": "Decentralized finance user",
+    "description": "Recognition for engagement with DeFi protocols",
+    "path": "badges/DeFiDrifter.png"
+  },
+  {
+    "id": "gas_spender",
+    "label": "Gas Spender",
+    "message": "Active blockchain transactor",
+    "description": "Awarded for consistent blockchain transaction activity",
+    "path": "badges/GasSpender.png"
+  },
+  {
+    "id": "staking_veteran",
+    "label": "Staking Veteran",
+    "message": "Long-term asset staker",
+    "description": "Badge for users with significant staking experience",
+    "path": "badges/StakingVeteran.png"
+  },
+  {
+    "id": "airdrop_veteran",
+    "label": "Airdrop Veteran",
+    "message": "Distribution recipient",
+    "description": "Awarded for participation in multiple airdrops",
+    "path": "badges/AirdropVeteran.png"
+  },
+  {
+    "id": "dao_diplomat",
+    "label": "DAO Diplomat",
+    "message": "Governance participant",
+    "description": "Recognition for participation in DAO governance",
+    "path": "badges/DAODiplomat.png"
+  },
+  {
+    "id": "web3_domain_owner",
+    "label": "Web3 Domain Owner",
+    "message": "Decentralized domain holder",
+    "description": "Badge for owning blockchain-based domain names",
+    "path": "badges/Web3DomainOwner.png"
+  },
+  {
+    "id": "degen_dualist",
+    "label": "Degen Dualist",
+    "message": "Risk-taking trader",
+    "description": "Awarded for high-frequency trading activity",
+    "path": "badges/DegenDualist.png"
+  },
+  {
+    "id": "transaction_titan",
+    "label": "Transaction Titan",
+    "message": "High volume transactor",
+    "description": "Recognition for executing numerous blockchain transactions",
+    "path": "badges/TransactionTitan.png"
+  },
+  {
+    "id": "token_interactor",
+    "label": "Token Interactor",
+    "message": "Diverse token user",
+    "description": "Awarded for interacting with many different tokens",
+    "path": "badges/TokenInteractor.png"
+  },
+  {
+    "id": "nft_whale",
+    "label": "NFT Whale",
+    "message": "Major NFT collector",
+    "description": "Badge for users with substantial NFT collections",
+    "path": "badges/NFTWhale.png"
+  },
+  {
+    "id": "defi_master",
+    "label": "DeFi Master",
+    "message": "Advanced DeFi user",
+    "description": "Recognition for sophisticated DeFi protocol usage",
+    "path": "badges/DefiMaster.png"
+  },
+  {
+    "id": "bridge_blazer",
+    "label": "Bridge Blazer",
+    "message": "Cross-chain operator",
+    "description": "Awarded for activity across multiple blockchain bridges",
+    "path": "badges/BridgeBlazer.png"
+  },
+  {
+    "id": "social_hodler",
+    "label": "Social HODLer",
+    "message": "Long-term community member",
+    "description": "Recognition for maintaining consistent presence in communities",
+    "path": "badges/SocialHODLer.png"
+  },
+  {
+    "id": "group_guru",
+    "label": "Group Guru",
+    "message": "Community organizer",
+    "description": "Badge for users who manage multiple groups",
+    "path": "badges/GroupGuru.png"
+  },
+  {
+    "id": "message_maestro",
+    "label": "Message Maestro",
+    "message": "Prolific communicator",
+    "description": "Recognition for high message volume in communities",
+    "path": "badges/MessageMaestro.png"
+  },
+  {
+    "id": "pinned_message_master",
+    "label": "Pinned Message Master",
+    "message": "Important information sharer",
+    "description": "Awarded for effectively using pinned messages",
+    "path": "badges/PinnedMessageMaster.png"
+  },
+  {
+    "id": "media_messenger",
+    "label": "Media Messenger",
+    "message": "Rich media communicator",
+    "description": "Badge for users who share media in messages",
+    "path": "badges/MediaMessenger.png"
+  },
+  {
+    "id": "hashtag_hero",
+    "label": "Hashtag Hero",
+    "message": "Categorization expert",
+    "description": "Recognition for effective hashtag usage",
+    "path": "badges/HashtagHero.png"
+  },
+  {
+    "id": "poll_creator",
+    "label": "Poll Creator",
+    "message": "Community opinion gatherer",
+    "description": "Awarded for creating polls and surveys",
+    "path": "badges/PollCreator.png"
+  },
+  {
+    "id": "community_leader",
+    "label": "Community Leader",
+    "message": "Group administrator",
+    "description": "Badge for users who lead online communities",
+    "path": "badges/CommunityLeader.png"
+  },
+  {
+    "id": "bot_interactor",
+    "label": "Bot Interactor",
+    "message": "Automated assistant user",
+    "description": "Recognition for effectively using bot services",
+    "path": "badges/BotInteractor.png"
+  },
+  {
+    "id": "sticker_star",
+    "label": "Sticker Star",
+    "message": "Visual communicator",
+    "description": "Awarded for creative sticker usage",
+    "path": "badges/StickerStar.png"
+  },
+  {
+    "id": "gif_guru",
+    "label": "GIF Guru",
+    "message": "Animated expression master",
+    "description": "Badge for users who effectively communicate with GIFs",
+    "path": "badges/GIFGuru.png"
+  },
+  {
+    "id": "mention_magnet",
+    "label": "Mention Magnet",
+    "message": "Frequently referenced",
+    "description": "Recognition for being mentioned often in conversations",
+    "path": "badges/MentionMagnet.png"
+  },
+  {
+    "id": "telegram_titan",
+    "label": "Telegram Titan",
+    "message": "Messaging platform power user",
+    "description": "Awarded for extensive Telegram activity",
+    "path": "badges/TelegramTitan.png"
+  },
+  {
+    "id": "governance_griot",
+    "label": "Governance Griot",
+    "message": "Community decision maker",
+    "description": "Badge for users active in community governance",
+    "path": "badges/GovernanceGriot.png"
+  },
+  {
+    "id": "dapp_diplomat",
+    "label": "Dapp Diplomat",
+    "message": "Decentralized app power user",
+    "description": "Recognition for using various decentralized applications",
+    "path": "badges/DappDiplomat.png"
+  },
+  {
+    "id": "liquidity_laureate",
+    "label": "Liquidity Laureate",
+    "message": "DeFi liquidity provider",
+    "description": "Awarded for providing liquidity in DeFi protocols",
+    "path": "badges/LiquidityLaureate.png"
   }
 ]

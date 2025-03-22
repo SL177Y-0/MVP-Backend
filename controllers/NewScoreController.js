@@ -43,7 +43,7 @@ class ScoreController extends BaseController {
             // If only a single address is provided, add it to the array
             walletAddresses = [address];
         }
-        
+
         return {
             privyId,
             username,
@@ -105,7 +105,7 @@ class ScoreController extends BaseController {
                         return transformedData;
                     })
                     .catch(err => {
-                        console.error("❌ Error fetching wallet data:", err.message);
+                console.error("❌ Error fetching wallet data:", err.message);
                         return {
                             "Native Balance Result": 0,
                             "Token Balances Result": [],
@@ -199,32 +199,32 @@ class ScoreController extends BaseController {
             // Update each wallet in the walletAddresses array
             if (params.walletAddresses && Array.isArray(params.walletAddresses)) {
                 for (const walletAddress of params.walletAddresses) {
-                    if (!walletAddress) continue;
-                    
-                    // Check if this wallet already exists in the record
-                    const walletIndex = scoreRecord.wallets.findIndex(w => w.walletAddress === walletAddress);
-                    
-                    // For the primary address, use the calculated score
-                    // For other addresses, assign a default score if they don't exist
+                if (!walletAddress) continue;
+                
+                // Check if this wallet already exists in the record
+                const walletIndex = scoreRecord.wallets.findIndex(w => w.walletAddress === walletAddress);
+                
+                // For the primary address, use the calculated score
+                // For other addresses, assign a default score if they don't exist
                     const walletScore = (walletAddress === params.address) 
-                        ? (evaluationResult.scores.cryptoScore || 0) + (evaluationResult.scores.nftScore || 0)
-                        : 10; // Default score for additional wallets
-                    
-                    if (walletIndex >= 0) {
-                        // Only update the score for the primary address
+                    ? (evaluationResult.scores.cryptoScore || 0) + (evaluationResult.scores.nftScore || 0)
+                    : 10; // Default score for additional wallets
+                
+                if (walletIndex >= 0) {
+                    // Only update the score for the primary address
                         if (walletAddress === params.address) {
-                            scoreRecord.wallets[walletIndex].score = walletScore;
-                            console.log(`✅ Updated existing wallet score: ${walletAddress} = ${walletScore}`);
-                        } else {
-                            console.log(`ℹ️ Existing additional wallet: ${walletAddress}, score = ${scoreRecord.wallets[walletIndex].score}`);
-                        }
+                        scoreRecord.wallets[walletIndex].score = walletScore;
+                        console.log(`✅ Updated existing wallet score: ${walletAddress} = ${walletScore}`);
                     } else {
-                        // Add the new wallet
-                        scoreRecord.wallets.push({
-                            walletAddress: walletAddress,
-                            score: walletScore
-                        });
-                        console.log(`✅ Added new wallet with score: ${walletAddress} = ${walletScore}`);
+                        console.log(`ℹ️ Existing additional wallet: ${walletAddress}, score = ${scoreRecord.wallets[walletIndex].score}`);
+                    }
+                } else {
+                    // Add the new wallet
+                    scoreRecord.wallets.push({
+                        walletAddress: walletAddress,
+                        score: walletScore
+                    });
+                    console.log(`✅ Added new wallet with score: ${walletAddress} = ${walletScore}`);
                     }
                 }
             }
@@ -239,9 +239,9 @@ class ScoreController extends BaseController {
             
             // Save the score record - Make sure it's awaited
             try {
-                await scoreRecord.save();
-                console.log(`✅ Score record saved successfully: ${scoreRecord._id}`);
-                console.log(`✅ Score updated for PrivyID: ${privyId}, Total score: ${scoreRecord.totalScore}`);
+            await scoreRecord.save();
+            console.log(`✅ Score record saved successfully: ${scoreRecord._id}`);
+            console.log(`✅ Score updated for PrivyID: ${privyId}, Total score: ${scoreRecord.totalScore}`);
             } catch (err) {
                 console.error(`❌ Error saving score to database: ${err.message}`);
                 // Try to save without badges if there's an issue
@@ -251,7 +251,7 @@ class ScoreController extends BaseController {
                     console.log(`✅ Score saved without badges: ${scoreRecord._id}`);
                 }
             }
-
+            
             // Also update User model if it exists
             await this.updateUserRecord(privyId, evaluationResult, params, totalWalletScore);
             
@@ -331,23 +331,23 @@ class ScoreController extends BaseController {
                 console.log(`✅ User record updated for PrivyID: ${privyId}`);
             } else {
                 // Create a new User record if one doesn't exist
-                console.log(`No User record found, creating new one for PrivyID: ${privyId}`);
-                const newUser = new User({
-                    privyId,
+                    console.log(`No User record found, creating new one for PrivyID: ${privyId}`);
+                    const newUser = new User({
+                        privyId,
                     email: params.email || null,
                     twitterUsername: params.username || null,
                     totalScore: evaluationResult.scores.socialScore + evaluationResult.scores.telegramScore + totalWalletScore,
                     walletAddress: params.address || null,
                     walletConnected: !!params.address,
-                    scoreDetails: {
-                        twitterScore: evaluationResult.scores.socialScore || 0,
-                        walletScore: totalWalletScore,
-                        veridaScore: evaluationResult.scores.telegramScore || 0
-                    },
-                    lastScoreUpdate: new Date()
-                });
-                await newUser.save();
-                console.log(`✅ New User record created for PrivyID: ${privyId}`);
+                        scoreDetails: {
+                            twitterScore: evaluationResult.scores.socialScore || 0,
+                            walletScore: totalWalletScore,
+                            veridaScore: evaluationResult.scores.telegramScore || 0
+                        },
+                        lastScoreUpdate: new Date()
+                    });
+                    await newUser.save();
+                    console.log(`✅ New User record created for PrivyID: ${privyId}`);
             }
         } catch (error) {
             console.error("❌ Error updating User record:", error.message);
@@ -377,21 +377,21 @@ class ScoreController extends BaseController {
             // 4. Save results to database
             try {
                 await this.saveResults(params.privyId, evaluationResult, params);
-            } catch (dbError) {
-                console.error("❌ Error saving score to database:", dbError.message);
-                // Continue execution even if db save fails
-            }
-            
+        } catch (dbError) {
+            console.error("❌ Error saving score to database:", dbError.message);
+            // Continue execution even if db save fails
+        }
+
             // 5. Send response
             return this.sendSuccess(res, {
                 privyId: params.privyId,
-                title: evaluationResult.title,
-                badges: evaluationResult.badges,
+            title: evaluationResult.title,
+            badges: evaluationResult.badges,
                 scores: evaluationResult.scores,
                 walletCount: params.walletAddresses.length
-            });
-        } catch (error) {
-            console.error("❌ Error calculating score:", error.message);
+        });
+    } catch (error) {
+        console.error("❌ Error calculating score:", error.message);
             return this.sendError(res, error.message, 500);
         }
     }
@@ -539,16 +539,22 @@ function calculateScore(twitterData, walletData, telegramGroups, telegramMessage
     const wallet = {
         "Native Balance Result": walletData["Native Balance Result"] || 0,
         "Token Balances Result": walletData["Token Balances Result"] || [],
-        "activeChains": walletData["Active Chains Result"]?.activeChains || [],
+        "activeChains": walletData["Active Chains Result"]?.activeChains?.active_chains || [],
         "DeFi Positions Summary Result": walletData["DeFi Positions Summary Result"] || [],
         "Resolved Address Result": walletData["Resolved Address Result"] || null,
         "Wallet NFTs Result": walletData["Wallet NFTs Result"] || [],
-        "transactionCount": walletData["Transaction Count"] || 0,
-        "uniqueTokenInteractions": walletData["Unique Token Interactions"] || 0
+        "transactionCount": walletData["Transaction Count"] || 50, // Add default value
+        "uniqueTokenInteractions": walletData["Unique Token Interactions"] || 10 // Add default value
     };
     
     // Debug wallet data
     console.log(`📊 Wallet processing - Native Balance: ${wallet["Native Balance Result"]}, Tokens: ${wallet["Token Balances Result"].length}, NFTs: ${wallet["Wallet NFTs Result"].length}`);
+    console.log(`📊 WALLET DATA DETAILS:`);
+    console.log(`Native Balance: ${wallet["Native Balance Result"]}`);
+    console.log(`Token Balances: ${JSON.stringify(wallet["Token Balances Result"])}`);
+    console.log(`Active Chains: ${JSON.stringify(wallet.activeChains)}`);
+    console.log(`Transaction Count: ${wallet.transactionCount}`);
+    console.log(`Unique Token Interactions: ${wallet.uniqueTokenInteractions}`);
     
     // Safely access Telegram data
     const telegram = Array.isArray(telegramGroups?.items) ? telegramGroups.items : [];
@@ -573,15 +579,37 @@ function calculateScore(twitterData, walletData, telegramGroups, telegramMessage
     );
 
     // Calculate Crypto/DeFi Activity Score (max 40)
-    const cryptoScore = (
-        wallet.activeChains.length * weights.activeChains +
-        wallet["Native Balance Result"] * weights.nativeBalance +
-        wallet["Token Balances Result"].length * weights.tokenHoldings +
-        wallet["DeFi Positions Summary Result"].length * weights.defiPositions +
-        (wallet["Resolved Address Result"] ? weights.web3Domains : 0) +
-        wallet.transactionCount * weights.transactionCount +
-        wallet.uniqueTokenInteractions * weights.uniqueTokenInteractions
-    );
+    // Add debug logging for calculation components
+    const chainScoreComponent = (Array.isArray(wallet.activeChains) ? wallet.activeChains.length : 0) * weights.activeChains;
+    const balanceScoreComponent = parseFloat(wallet["Native Balance Result"]) * weights.nativeBalance;
+    const tokenScoreComponent = wallet["Token Balances Result"].length * weights.tokenHoldings;
+    const defiScoreComponent = wallet["DeFi Positions Summary Result"].length * weights.defiPositions;
+    const domainScoreComponent = (wallet["Resolved Address Result"] ? weights.web3Domains : 0);
+    const txScoreComponent = wallet.transactionCount * weights.transactionCount;
+    const interactionScoreComponent = wallet.uniqueTokenInteractions * weights.uniqueTokenInteractions;
+
+    console.log(`📊 CRYPTO SCORE COMPONENTS:`);
+    console.log(`Chain score: ${chainScoreComponent}`);
+    console.log(`Balance score: ${balanceScoreComponent}`);
+    console.log(`Token score: ${tokenScoreComponent}`);
+    console.log(`DeFi score: ${defiScoreComponent}`);
+    console.log(`Domain score: ${domainScoreComponent}`);
+    console.log(`Transaction score: ${txScoreComponent}`);
+    console.log(`Interaction score: ${interactionScoreComponent}`);
+
+    const cryptoScoreRaw = chainScoreComponent + 
+                          balanceScoreComponent + 
+                          tokenScoreComponent + 
+                          defiScoreComponent + 
+                          domainScoreComponent + 
+                          txScoreComponent + 
+                          interactionScoreComponent;
+    
+    // Ensure we have a valid numeric value with fallback
+    const cryptoScore = (!isNaN(cryptoScoreRaw) && cryptoScoreRaw !== undefined) ? 
+                       cryptoScoreRaw : 10; // Fallback to default value of 10
+    
+    console.log(`📊 Calculated crypto score: ${cryptoScoreRaw} → ${cryptoScore} (after NaN check)`);
 
     // Calculate NFT Engagement Score (max 30)
     const nftScore = wallet["Wallet NFTs Result"].length * weights.nftHoldings;
